@@ -1,12 +1,11 @@
-
 import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 import plotly.express as px
- 
+
 st.set_page_config(page_title="Sovereign Defaults Dashboard", layout="wide", page_icon="🌍")
- 
+
 st.markdown("""
 <style>
     .metric-card {
@@ -21,12 +20,14 @@ st.markdown("""
     section[data-testid="stSidebar"] { background: #12151f; }
 </style>
 """, unsafe_allow_html=True)
- 
- 
+
+
 @st.cache_data
 def load_data():
-    df_raw = pd.read_excel("/mnt/user-data/uploads/data.xlsx", header=None)
- 
+    import os
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    df_raw = pd.read_excel(os.path.join(base_dir, "data.xlsx"), header=None)
+
     # Parse years from row 0
     years_raw = df_raw.iloc[0, 4:].values
     years = []
@@ -38,7 +39,7 @@ def load_data():
                 years.append(int(float(y)))
         except:
             pass
- 
+
     def get_row(row_idx):
         vals = df_raw.iloc[row_idx, 4:4+len(years)].values
         result = []
@@ -51,7 +52,7 @@ def load_data():
             except:
                 result.append(np.nan)
         return pd.Series(result, index=years)
- 
+
     # Summary: Creditor breakdown (rows 6–17)
     creditor_rows = {
         'Total': 6, 'IMF': 7, 'IBRD': 8, 'IDA': 9, 'IADB': 10,
@@ -60,24 +61,24 @@ def load_data():
         'Other Private': 16, 'LC Debt': 17
     }
     df_creditors = pd.DataFrame({k: get_row(v) for k, v in creditor_rows.items()})
- 
+
     # Summary: Debtor breakdown (rows 22–26)
     debtor_rows = {
         'Total': 22, 'Advanced Economies': 23,
         'Emerging/Frontier': 24, 'HIPC': 25, 'Other Developing': 26
     }
     df_debtors = pd.DataFrame({k: get_row(v) for k, v in debtor_rows.items()})
- 
+
     # Default rates (rows 31, 36)
     df_rates = pd.DataFrame({
         '% of all Sovereigns': get_row(31),
         '% of World GDP': get_row(36),
     })
- 
+
     # Sovereigns in default count (row 40)
     sov_in_default = get_row(40)
     total_sovereigns = get_row(38)
- 
+
     # Country-level data
     countries = []
     for i in range(66, len(df_raw)):
@@ -99,18 +100,18 @@ def load_data():
                 countries.append({'name': name, 'total': total_series})
             except:
                 pass
- 
+
     df_countries = pd.DataFrame(
         [c['total'] for c in countries],
         index=[c['name'] for c in countries],
         columns=years
     )
- 
+
     return df_creditors, df_debtors, df_rates, sov_in_default, total_sovereigns, df_countries, years
- 
- 
+
+
 df_creditors, df_debtors, df_rates, sov_in_default, total_sovereigns, df_countries, years = load_data()
- 
+
 CREDITOR_COLORS = {
     'IMF': '#4e9af1', 'IBRD': '#f1c44e', 'IDA': '#e87040',
     'IADB': '#9b59b6', 'Paris Club': '#2ecc71',
@@ -118,7 +119,7 @@ CREDITOR_COLORS = {
     'FC Bank Loans': '#f39c12', 'FC Bonds': '#3498db',
     'Other Private': '#95a5a6', 'LC Debt': '#d35400'
 }
- 
+
 # ── Sidebar ──────────────────────────────────────────────────────────────────
 with st.sidebar:
     st.markdown("## 🌍 Sovereign Defaults")
@@ -137,14 +138,14 @@ with st.sidebar:
     creditor_options = list(CREDITOR_COLORS.keys())
     selected_creditors = st.multiselect("", options=creditor_options,
                                         default=['Paris Club', 'China', 'FC Bonds', 'IMF', 'Other Official'])
- 
+
 y0, y1 = year_range
 yr_slice = [y for y in years if y0 <= y <= y1]
- 
+
 # ── Header ───────────────────────────────────────────────────────────────────
 st.title("🌍 Global Sovereign Defaults Dashboard")
 st.caption(f"Showing data from **{y0}** to **{y1}** · {len(df_countries)} countries tracked")
- 
+
 # ── KPI Cards ────────────────────────────────────────────────────────────────
 col1, col2, col3, col4 = st.columns(4)
 latest_year = max(y for y in yr_slice if not np.isnan(df_creditors.loc[y, 'Total']))
@@ -153,44 +154,44 @@ peak_year = df_creditors.loc[yr_slice, 'Total'].idxmax()
 peak_total = df_creditors.loc[peak_year, 'Total']
 latest_rate = df_rates.loc[latest_year, '% of all Sovereigns']
 latest_count = sov_in_default.loc[latest_year]
- 
+
 with col1:
     st.markdown(f"""<div class="metric-card">
         <div class="metric-label">Total Debt in Default ({latest_year})</div>
         <div class="metric-value">${latest_total/1e6:.2f}T</div>
         <div class="metric-sub">US$ million basis</div>
     </div>""", unsafe_allow_html=True)
- 
+
 with col2:
     st.markdown(f"""<div class="metric-card">
         <div class="metric-label">Peak Default Debt</div>
         <div class="metric-value">${peak_total/1e6:.2f}T</div>
         <div class="metric-sub">in {peak_year}</div>
     </div>""", unsafe_allow_html=True)
- 
+
 with col3:
     st.markdown(f"""<div class="metric-card">
         <div class="metric-label">% Sovereigns in Default ({latest_year})</div>
         <div class="metric-value">{latest_rate:.1f}%</div>
         <div class="metric-sub">of all sovereigns</div>
     </div>""", unsafe_allow_html=True)
- 
+
 with col4:
     st.markdown(f"""<div class="metric-card">
         <div class="metric-label">Countries in Default ({latest_year})</div>
         <div class="metric-value">{int(latest_count)}</div>
         <div class="metric-sub">sovereign defaulters</div>
     </div>""", unsafe_allow_html=True)
- 
+
 st.markdown("<br>", unsafe_allow_html=True)
- 
+
 # ── Tab Layout ───────────────────────────────────────────────────────────────
 tab1, tab2, tab3 = st.tabs(["📈 Total Debt in Default", "🥧 Creditor Breakdown", "🌐 Country Deep Dive"])
- 
+
 # ─── TAB 1: Total Debt Over Time ─────────────────────────────────────────────
 with tab1:
     col_left, col_right = st.columns([2, 1])
- 
+
     with col_left:
         st.subheader("Total Sovereign Debt in Default Over Time")
         fig = go.Figure()
@@ -222,7 +223,7 @@ with tab1:
             hovermode='x unified'
         )
         st.plotly_chart(fig, use_container_width=True)
- 
+
     with col_right:
         st.subheader("By Debtor Group")
         debtor_cols = ['Advanced Economies', 'Emerging/Frontier', 'HIPC', 'Other Developing']
@@ -244,7 +245,7 @@ with tab1:
             hovermode='x unified'
         )
         st.plotly_chart(fig2, use_container_width=True)
- 
+
     # Number of defaulters over time
     st.subheader("Number of Sovereigns in Default Over Time")
     fig3 = go.Figure()
@@ -270,15 +271,15 @@ with tab1:
         hovermode='x unified'
     )
     st.plotly_chart(fig3, use_container_width=True)
- 
- 
+
+
 # ─── TAB 2: Creditor Breakdown ───────────────────────────────────────────────
 with tab2:
     if not selected_creditors:
         st.warning("Select at least one creditor in the sidebar.")
     else:
         col_l, col_r = st.columns([3, 2])
- 
+
         with col_l:
             st.subheader("Creditor Breakdown Over Time (Stacked)")
             fig4 = go.Figure()
@@ -298,7 +299,7 @@ with tab2:
                 hovermode='x unified'
             )
             st.plotly_chart(fig4, use_container_width=True)
- 
+
         with col_r:
             st.subheader(f"Composition in {latest_year}")
             pie_vals = {}
@@ -322,7 +323,7 @@ with tab2:
                                       font_size=18, showarrow=False, font_color='white')]
                 )
                 st.plotly_chart(fig5, use_container_width=True)
- 
+
         # China vs Paris Club comparison
         st.subheader("China vs. Paris Club: Creditor Default Amounts")
         fig6 = go.Figure()
@@ -343,8 +344,8 @@ with tab2:
             hovermode='x unified'
         )
         st.plotly_chart(fig6, use_container_width=True)
- 
- 
+
+
 # ─── TAB 3: Country Deep Dive ────────────────────────────────────────────────
 with tab3:
     if not selected_countries:
@@ -372,7 +373,7 @@ with tab3:
             hovermode='x unified'
         )
         st.plotly_chart(fig7, use_container_width=True)
- 
+
         # Top 15 defaulters bar chart
         st.subheader("Top 15 Countries by Total Default (All Time)")
         df_sum = df_countries.loc[:, yr_slice].sum(axis=1, skipna=True).nlargest(15)
@@ -397,7 +398,7 @@ with tab3:
             yaxis=dict(autorange='reversed')
         )
         st.plotly_chart(fig8, use_container_width=True)
- 
+
         # Heatmap: selected countries x decades
         if len(selected_countries) >= 2:
             st.subheader("Default Heatmap — Selected Countries")
@@ -407,7 +408,7 @@ with tab3:
                 if decade not in decade_years:
                     decade_years[decade] = []
                 decade_years[decade].append(y)
- 
+
             heatmap_data = []
             for country in selected_countries:
                 if country in df_countries.index:
@@ -416,7 +417,7 @@ with tab3:
                         vals = df_countries.loc[country, [y for y in dyears if y in df_countries.columns]]
                         row.append(vals.mean(skipna=True) / 1e3)
                     heatmap_data.append(row)
- 
+
             if heatmap_data:
                 fig9 = go.Figure(go.Heatmap(
                     z=heatmap_data,
@@ -432,7 +433,7 @@ with tab3:
                     xaxis=dict(side='bottom')
                 )
                 st.plotly_chart(fig9, use_container_width=True)
- 
+
 # ── Footer ───────────────────────────────────────────────────────────────────
 st.divider()
 st.caption("Source: Database of Sovereign Defaults · Last Update: July 2025 · Built with Streamlit + Plotly")
