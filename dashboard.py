@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 import plotly.express as px
+import plotly.io as pio
 
 st.set_page_config(page_title="Sovereign Defaults Dashboard", layout="wide", page_icon="🌍")
 
@@ -108,6 +109,47 @@ def load_data():
     )
 
     return df_creditors, df_debtors, df_rates, sov_in_default, total_sovereigns, df_countries, years
+
+
+def plotly_html_bytes(fig):
+    """Return a self-contained, interactive Plotly HTML file as UTF-8 bytes."""
+    html = pio.to_html(
+        fig,
+        full_html=True,
+        include_plotlyjs=True,
+        config={
+            "responsive": True,
+            "displaylogo": False,
+            "scrollZoom": True,
+            "toImageButtonOptions": {
+                "format": "png",
+                "scale": 2,
+            },
+        },
+        default_width="100%",
+        default_height="100%",
+    )
+    return html.encode("utf-8")
+
+
+def show_plotly_chart_with_download(fig, filename, key):
+    """Display a Plotly chart and add a standalone HTML download button."""
+    st.plotly_chart(
+        fig,
+        use_container_width=True,
+        config={
+            "responsive": True,
+            "displaylogo": False,
+        },
+    )
+    st.download_button(
+        label="⬇️ Download standalone HTML",
+        data=plotly_html_bytes(fig),
+        file_name=filename,
+        mime="text/html",
+        key=key,
+        help="Downloads a self-contained interactive HTML file that can be opened directly in a browser.",
+    )
 
 
 df_creditors, df_debtors, df_rates, sov_in_default, total_sovereigns, df_countries, years = load_data()
@@ -222,7 +264,11 @@ with tab1:
             margin=dict(l=50, r=50, t=20, b=40),
             hovermode='x unified'
         )
-        st.plotly_chart(fig, use_container_width=True)
+        show_plotly_chart_with_download(
+            fig,
+            "total_sovereign_debt_in_default.html",
+            "download_fig_total_debt",
+        )
 
     with col_right:
         st.subheader("By Debtor Group")
@@ -244,7 +290,11 @@ with tab1:
             margin=dict(l=40, r=20, t=20, b=40),
             hovermode='x unified'
         )
-        st.plotly_chart(fig2, use_container_width=True)
+        show_plotly_chart_with_download(
+            fig2,
+            "debtor_group_breakdown.html",
+            "download_fig_debtor_group",
+        )
 
     # Number of defaulters over time
     st.subheader("Number of Sovereigns in Default Over Time")
@@ -270,7 +320,11 @@ with tab1:
         margin=dict(l=40, r=20, t=10, b=40),
         hovermode='x unified'
     )
-    st.plotly_chart(fig3, use_container_width=True)
+    show_plotly_chart_with_download(
+        fig3,
+        "sovereigns_in_default_count.html",
+        "download_fig_default_count",
+    )
 
 
 # ─── TAB 2: Creditor Breakdown ───────────────────────────────────────────────
@@ -298,7 +352,11 @@ with tab2:
                 margin=dict(l=40, r=20, t=20, b=40),
                 hovermode='x unified'
             )
-            st.plotly_chart(fig4, use_container_width=True)
+            show_plotly_chart_with_download(
+                fig4,
+                "creditor_breakdown_stacked.html",
+                "download_fig_creditor_stacked",
+            )
 
         with col_r:
             st.subheader(f"Composition in {latest_year}")
@@ -322,7 +380,11 @@ with tab2:
                     annotations=[dict(text=f'{latest_year}', x=0.5, y=0.5,
                                       font_size=18, showarrow=False, font_color='white')]
                 )
-                st.plotly_chart(fig5, use_container_width=True)
+                show_plotly_chart_with_download(
+                    fig5,
+                    "creditor_composition.html",
+                    "download_fig_creditor_pie",
+                )
 
         # China vs Paris Club comparison
         st.subheader("China vs. Paris Club: Creditor Default Amounts")
@@ -343,7 +405,11 @@ with tab2:
             margin=dict(l=40, r=20, t=10, b=40),
             hovermode='x unified'
         )
-        st.plotly_chart(fig6, use_container_width=True)
+        show_plotly_chart_with_download(
+            fig6,
+            "china_vs_paris_club.html",
+            "download_fig_china_paris",
+        )
 
 
 # ─── TAB 3: Country Deep Dive ────────────────────────────────────────────────
@@ -372,7 +438,11 @@ with tab3:
             margin=dict(l=40, r=20, t=20, b=40),
             hovermode='x unified'
         )
-        st.plotly_chart(fig7, use_container_width=True)
+        show_plotly_chart_with_download(
+            fig7,
+            "country_default_history.html",
+            "download_fig_country_history",
+        )
 
         # Top 15 defaulters bar chart
         st.subheader("Top 15 Countries by Total Default (All Time)")
@@ -397,7 +467,11 @@ with tab3:
             margin=dict(l=150, r=40, t=10, b=40),
             yaxis=dict(autorange='reversed')
         )
-        st.plotly_chart(fig8, use_container_width=True)
+        show_plotly_chart_with_download(
+            fig8,
+            "top_15_country_defaults.html",
+            "download_fig_top_15",
+        )
 
         # Heatmap: selected countries x decades
         if len(selected_countries) >= 2:
@@ -432,7 +506,11 @@ with tab3:
                     margin=dict(l=130, r=40, t=10, b=60),
                     xaxis=dict(side='bottom')
                 )
-                st.plotly_chart(fig9, use_container_width=True)
+                show_plotly_chart_with_download(
+                    fig9,
+                    "selected_country_default_heatmap.html",
+                    "download_fig_heatmap",
+                )
 
 # ── Footer ───────────────────────────────────────────────────────────────────
 st.divider()
