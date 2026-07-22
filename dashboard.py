@@ -1,3 +1,4 @@
+
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -6,6 +7,178 @@ import plotly.express as px
 import plotly.io as pio
 
 st.set_page_config(page_title="Sovereign Defaults Dashboard", layout="wide", page_icon="🌍")
+
+# Country name -> ISO alpha-3 code, for the choropleth world map.
+# Dissolved states with no modern geometry map to None and render as "no data".
+ISO3_MAP = {
+    'Afghanistan': 'AFG',
+    'Albania': 'ALB',
+    'Algeria': 'DZA',
+    'Angola': 'AGO',
+    'Anguila': 'AIA',
+    'Antigua and Barbuda': 'ATG',
+    'Argentina': 'ARG',
+    'Armenia': 'ARM',
+    'Aruba': 'ABW',
+    'Azerbaijan': 'AZE',
+    'Bahamas': 'BHS',
+    'Bangladesh': 'BGD',
+    'Barbados': 'BRB',
+    'Belarus': 'BLR',
+    'Belize': 'BLZ',
+    'Benin': 'BEN',
+    'Bhutan': 'BTN',
+    'Bolivia': 'BOL',
+    'Bosnia & Herzegovina': 'BIH',
+    'Botswana': 'BWA',
+    'Brazil': 'BRA',
+    'Bulgaria': 'BGR',
+    'Burkina Faso': 'BFA',
+    'Burundi': 'BDI',
+    'Cabo Verde': 'CPV',
+    'Cambodia': 'KHM',
+    'Cameroon': 'CMR',
+    'Central African Republic': 'CAF',
+    'Chad': 'TCD',
+    'Chile': 'CHL',
+    'China': 'CHN',
+    'Colombia': 'COL',
+    'Comoros': 'COM',
+    'Rep. Of Congo (Brazzaville)': 'COG',
+    'Dem. Rep. of Congo (Kinshasa)': 'COD',
+    'Cook Islands': 'COK',
+    'Costa Rica': 'CRI',
+    'Côte d’Ivoire': 'CIV',
+    'Croatia': 'HRV',
+    'Cuba': 'CUB',
+    'Curaçao': 'CUW',
+    'Cyprus': 'CYP',
+    'Czechoslovakia': None,
+    'Djibouti': 'DJI',
+    'Dominica': 'DMA',
+    'Dominican Republic': 'DOM',
+    'Ecuador': 'ECU',
+    'Egypt': 'EGY',
+    'El Salvador': 'SLV',
+    'Equatorial Guinea': 'GNQ',
+    'Eritrea': 'ERI',
+    'Ethiopia': 'ETH',
+    'Fiji': 'FJI',
+    'Gabon': 'GAB',
+    'The Gambia': 'GMB',
+    'Georgia': 'GEO',
+    'Ghana': 'GHA',
+    'Greece': 'GRC',
+    'Grenada': 'GRD',
+    'Guatemala': 'GTM',
+    'Guinea': 'GIN',
+    'Guinea-Bissau': 'GNB',
+    'Guyana': 'GUY',
+    'Haiti': 'HTI',
+    'Honduras': 'HND',
+    'Hungary': 'HUN',
+    'India': 'IND',
+    'Indonesia': 'IDN',
+    'Iran': 'IRN',
+    'Iraq': 'IRQ',
+    'Ireland': 'IRL',
+    'Jamaica': 'JAM',
+    'Jordan': 'JOR',
+    'Kazakhstan': 'KAZ',
+    'Kenya': 'KEN',
+    "Korea, Democratic People's Republic of (North)": 'PRK',
+    'Kosovo': 'XKX',
+    'Kyrgyz Republic': 'KGZ',
+    'Laos': 'LAO',
+    'Latvia': 'LVA',
+    'Lebanon': 'LBN',
+    'Lesotho': 'LSO',
+    'Liberia': 'LBR',
+    'Libya': 'LBY',
+    'Lithuania': 'LTU',
+    'North Macedonia': 'MKD',
+    'Madagascar': 'MDG',
+    'Malawi': 'MWI',
+    'Malaysia': 'MYS',
+    'Maldives': 'MDV',
+    'Mali': 'MLI',
+    'Marshall Islands': 'MHL',
+    'Mauritania': 'MRT',
+    'Mauritius': 'MUS',
+    'Mexico': 'MEX',
+    'Micronesia': 'FSM',
+    'Moldova': 'MDA',
+    'Mongolia': 'MNG',
+    'Montenegro': 'MNE',
+    'Morocco': 'MAR',
+    'Mozambique': 'MOZ',
+    'Myanmar': 'MMR',
+    'Namibia': 'NAM',
+    'Nauru': 'NRU',
+    'Nepal': 'NPL',
+    'Netherlands Antilles': None,
+    'Nicaragua': 'NIC',
+    'Niger': 'NER',
+    'Nigeria': 'NGA',
+    'Pakistan': 'PAK',
+    'Palau': 'PLW',
+    'Panama': 'PAN',
+    'Papua New Guinea': 'PNG',
+    'Paraguay': 'PRY',
+    'Peru': 'PER',
+    'Philippines': 'PHL',
+    'Poland': 'POL',
+    'Portugal': 'PRT',
+    'Puerto Rico': 'PRI',
+    'Romania': 'ROU',
+    'Rwanda': 'RWA',
+    'St. Kitts & Nevis': 'KNA',
+    'St. Lucia': 'LCA',
+    'St. Vincent and the Grenadines': 'VCT',
+    'Samoa': 'WSM',
+    'São Tomé and Príncipe': 'STP',
+    'Senegal': 'SEN',
+    'Serbia': 'SRB',
+    'Seychelles': 'SYC',
+    'Sierra Leone': 'SLE',
+    'Sint Maarten': 'SXM',
+    'Slovak Republic': 'SVK',
+    'Slovenia': 'SVN',
+    'Solomon Islands': 'SLB',
+    'Somalia': 'SOM',
+    'South Africa': 'ZAF',
+    'South Sudan': 'SSD',
+    'Sri Lanka': 'LKA',
+    'Sudan': 'SDN',
+    'Suriname': 'SUR',
+    'eSwatini (Swaziland)': 'SWZ',
+    'Syria': 'SYR',
+    'Tajikistan': 'TJK',
+    'Tanzania': 'TZA',
+    'Thailand': 'THA',
+    'Togo': 'TGO',
+    'Tonga': 'TON',
+    'Trinidad & Tobago': 'TTO',
+    'Tunisia': 'TUN',
+    'Turkey': 'TUR',
+    'Turkmenistan': 'TKM',
+    'Tuvalu': 'TUV',
+    'Uganda': 'UGA',
+    'Ukraine': 'UKR',
+    'United Kingdom': 'GBR',
+    'Uruguay': 'URY',
+    'USSR/Russian Federation': 'RUS',
+    'Uzbekistan': 'UZB',
+    'Vanuatu': 'VUT',
+    'Venezuela': 'VEN',
+    'Vietnam': 'VNM',
+    'West Bank & Gaza': 'PSE',
+    'Yemen': 'YEM',
+    'Yugoslavia': None,
+    'Zambia': 'ZMB',
+    'Zimbabwe': 'ZWE',
+}
+
 
 st.markdown("""
 <style>
@@ -253,7 +426,9 @@ with col4:
 st.markdown("<br>", unsafe_allow_html=True)
 
 # ── Tab Layout ───────────────────────────────────────────────────────────────
-tab1, tab2, tab3 = st.tabs(["📈 Total Debt in Default", "🥧 Creditor Breakdown", "🌐 Country Deep Dive"])
+tab1, tab2, tab3, tab4 = st.tabs([
+    "📈 Total Debt in Default", "🥧 Creditor Breakdown",
+    "🌐 Country Deep Dive", "🗺️ Global Map"])
 
 # ─── TAB 1: Total Debt Over Time ─────────────────────────────────────────────
 with tab1:
@@ -536,6 +711,88 @@ with tab3:
                     "selected_country_default_heatmap.html",
                     "download_fig_heatmap",
                 )
+
+# ─── TAB 4: Global Map ───────────────────────────────────────────────────────
+with tab4:
+    st.subheader("Global Debt in Default — Choropleth")
+
+    # Bucketed bins matching the reference figure (US$ millions).
+    MAP_BINS = [0, 100, 1000, 10000, 25000, 50000, np.inf]
+    MAP_LABELS = ['>0 - 100', '100 - 1,000', '1,000 - 10,000',
+                  '10,000 - 25,000', '25,000 - 50,000', '>50,000']
+    MAP_COLORS = {
+        '#N/A or 0': '#d9d9d9', '>0 - 100': '#ffffcc', '100 - 1,000': '#ffff33',
+        '1,000 - 10,000': '#ff9900', '10,000 - 25,000': '#f4978e',
+        '25,000 - 50,000': '#ff0000', '>50,000': '#5c1a1a',
+    }
+    MAP_ORDER = ['#N/A or 0'] + MAP_LABELS
+
+    def bin_label(v):
+        if pd.isna(v) or v <= 0:
+            return '#N/A or 0'
+        for lo, hi, lab in zip(MAP_BINS[:-1], MAP_BINS[1:], MAP_LABELS):
+            if lo < v <= hi:
+                return lab
+        return '>50,000'
+
+    # Year selector — default to the latest year in range that has any data.
+    years_with_data = [y for y in yr_slice
+                       if df_countries[y].replace(0, np.nan).notna().any()]
+    default_map_year = years_with_data[-1] if years_with_data else yr_slice[-1]
+    map_year = st.select_slider(
+        "Map year", options=yr_slice,
+        value=default_map_year,
+    )
+
+    fig_map = go.Figure()
+    bucket_counts = {lab: 0 for lab in MAP_ORDER}
+    for lab in MAP_ORDER:
+        locs, txt, cd = [], [], []
+        for name in df_countries.index:
+            code = ISO3_MAP.get(name)
+            if not code:
+                continue
+            v = df_countries.loc[name, map_year]
+            if bin_label(v) == lab:
+                locs.append(code)
+                txt.append(name)
+                cd.append("N/A" if (pd.isna(v) or v <= 0) else f"${v:,.0f}M")
+                bucket_counts[lab] += 1
+        fig_map.add_trace(go.Choropleth(
+            locations=locs, z=[0] * len(locs), text=txt, customdata=cd,
+            colorscale=[[0, MAP_COLORS[lab]], [1, MAP_COLORS[lab]]],
+            showscale=False, marker_line_color='white', marker_line_width=0.3,
+            name=lab, showlegend=True, legendgroup=lab,
+            hovertemplate='<b>%{text}</b><br>' + lab + '<br>%{customdata}<extra></extra>',
+        ))
+    fig_map.update_layout(
+        template='plotly_dark', height=560,
+        title=dict(text=f'Total debt in default by country, {map_year} (US$ millions)',
+                   x=0.01, font=dict(size=14)),
+        geo=dict(
+            showframe=False, showcoastlines=False, projection_type='equirectangular',
+            bgcolor='rgba(0,0,0,0)', landcolor='#2a2e3f', showland=True,
+            showocean=True, oceancolor='#12151f',
+            showcountries=True, countrycolor='#12151f', lataxis_range=[-58, 85],
+        ),
+        legend=dict(title='<b>US$ millions</b>', x=0.01, y=0.45,
+                    bgcolor='rgba(18,21,31,0.85)', bordercolor='#444', borderwidth=1,
+                    font=dict(size=11), itemsizing='constant'),
+        margin=dict(l=0, r=0, t=40, b=0),
+    )
+    show_plotly_chart_with_download(
+        fig_map,
+        f"global_debt_default_map_{map_year}.html",
+        "download_fig_world_map",
+    )
+
+    mapped = sum(1 for c in ISO3_MAP.values() if c)
+    st.caption(
+        f"{mapped} of {len(ISO3_MAP)} countries mapped to the world map · "
+        f"{bucket_counts['>50,000'] + bucket_counts['25,000 - 50,000']} in the top two bands "
+        f"in {map_year}. Grey = no data or zero (includes dissolved states)."
+    )
+
 
 # ── Footer ───────────────────────────────────────────────────────────────────
 st.divider()
