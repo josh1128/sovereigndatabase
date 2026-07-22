@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -761,24 +760,45 @@ with tab4:
         fig_map.add_trace(go.Choropleth(
             locations=locs, z=[0] * len(locs), text=txt, customdata=cd,
             colorscale=[[0, MAP_COLORS[lab]], [1, MAP_COLORS[lab]]],
-            showscale=False, marker_line_color='white', marker_line_width=0.3,
+            showscale=False, marker_line_color='#ffffff', marker_line_width=0.4,
             name=lab, showlegend=True, legendgroup=lab,
             hovertemplate='<b>%{text}</b><br>' + lab + '<br>%{customdata}<extra></extra>',
         ))
+
+    # Continent and ocean name labels, placed by lat/lon.
+    OCEAN_COLOR = '#a9c7e8'
+    LAND_COLOR = '#e6e6e6'
+    continents = [('NORTH AMERICA', 46, -100), ('SOUTH AMERICA', -14, -58),
+                  ('EUROPE', 56, -12), ('AFRICA', 11, 18),
+                  ('ASIA', 50, 100), ('AUSTRALIA', -25, 134)]
+    oceans = [('Atlantic<br>Ocean', 6, -34), ('Pacific<br>Ocean', 18, -150),
+              ('Pacific<br>Ocean', -20, -120), ('Indian<br>Ocean', -28, 80)]
+    fig_map.add_trace(go.Scattergeo(
+        lon=[c[2] for c in continents], lat=[c[1] for c in continents],
+        text=[c[0] for c in continents], mode='text', showlegend=False, hoverinfo='skip',
+        textfont=dict(color='#6b6b6b', size=13, family='Arial Black')))
+    fig_map.add_trace(go.Scattergeo(
+        lon=[o[2] for o in oceans], lat=[o[1] for o in oceans],
+        text=[o[0] for o in oceans], mode='text', showlegend=False, hoverinfo='skip',
+        textfont=dict(color='#5b7fb0', size=11, family='Arial')))
+
     fig_map.update_layout(
-        template='plotly_dark', height=560,
+        height=580,
         title=dict(text=f'Total debt in default by country, {map_year} (US$ millions)',
-                   x=0.01, font=dict(size=14)),
+                   x=0.01, font=dict(size=14, color='#222')),
         geo=dict(
-            showframe=False, showcoastlines=False, projection_type='equirectangular',
-            bgcolor='rgba(0,0,0,0)', landcolor='#2a2e3f', showland=True,
-            showocean=True, oceancolor='#12151f',
-            showcountries=True, countrycolor='#12151f', lataxis_range=[-58, 85],
+            showframe=False, showcoastlines=True, coastlinecolor='#ffffff', coastlinewidth=0.4,
+            projection_type='equirectangular',
+            landcolor=LAND_COLOR, showland=True,
+            showocean=True, oceancolor=OCEAN_COLOR,
+            showlakes=True, lakecolor=OCEAN_COLOR,
+            showcountries=True, countrycolor='#ffffff', countrywidth=0.4,
+            lataxis_range=[-58, 85], bgcolor='rgba(0,0,0,0)',
         ),
-        legend=dict(title='<b>US$ millions</b>', x=0.01, y=0.45,
-                    bgcolor='rgba(18,21,31,0.85)', bordercolor='#444', borderwidth=1,
-                    font=dict(size=11), itemsizing='constant'),
-        margin=dict(l=0, r=0, t=40, b=0),
+        legend=dict(title='<b>US$ millions</b>', x=0.012, y=0.55,
+                    bgcolor='rgba(255,255,255,0.92)', bordercolor='#bbb', borderwidth=1,
+                    font=dict(size=11, color='#222'), itemsizing='constant'),
+        margin=dict(l=0, r=0, t=40, b=0), paper_bgcolor='white',
     )
     show_plotly_chart_with_download(
         fig_map,
