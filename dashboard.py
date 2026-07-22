@@ -29,20 +29,32 @@ def load_data():
     base_dir = os.path.dirname(os.path.abspath(__file__))
     df_raw = pd.read_excel(os.path.join(base_dir, "data.xlsx"), header=None)
 
-    # Parse years from row 0
-    years_raw = df_raw.iloc[0, 4:].values
+    # The workbook shifted left by one column vs. the previous version:
+    #   col 0 = country row number, col 1 = label / country name,
+    #   col 2 = data score, and the first data column is now col 3.
+    DATA_START = 3
+
+    # Parse years from row 0 starting at the first data column.
+    # The first (US$ million level) block runs contiguously until a blank
+    # separator column; a second year block sits after it and must be ignored.
+    # Projection years are flagged with a trailing 'p' (e.g. '2025p').
     years = []
-    for y in years_raw:
+    n_cols = 0
+    for c in range(DATA_START, df_raw.shape[1]):
+        y = df_raw.iloc[0, c]
+        if pd.isna(y):
+            break  # blank column marks the end of the first data block
+        s = str(y).strip()
+        if s.endswith('p'):          # projection marker, e.g. '2025p'
+            s = s[:-1]
         try:
-            if str(y).strip() == '2024p':
-                years.append(2024)
-            elif pd.notna(y):
-                years.append(int(float(y)))
-        except:
-            pass
+            years.append(int(float(s)))
+            n_cols += 1
+        except (ValueError, TypeError):
+            break
 
     def get_row(row_idx):
-        vals = df_raw.iloc[row_idx, 4:4+len(years)].values
+        vals = df_raw.iloc[row_idx, DATA_START:DATA_START + n_cols].values
         result = []
         for v in vals:
             try:
@@ -80,15 +92,16 @@ def load_data():
     sov_in_default = get_row(40)
     total_sovereigns = get_row(38)
 
-    # Country-level data
+    # Country-level data (rows 66 onward).
+    # The row number now lives in col 0 and the country name in col 1.
     countries = []
     for i in range(66, len(df_raw)):
-        val1 = df_raw.iloc[i, 1]
-        val2 = df_raw.iloc[i, 2]
-        if pd.notna(val1) and isinstance(val1, (int, float)):
+        idx_val = df_raw.iloc[i, 0]
+        name_val = df_raw.iloc[i, 1]
+        if pd.notna(idx_val) and isinstance(idx_val, (int, float)):
             try:
-                name = str(val2).strip()
-                vals = df_raw.iloc[i, 4:4+len(years)].values
+                name = str(name_val).strip()
+                vals = df_raw.iloc[i, DATA_START:DATA_START + n_cols].values
                 total_series = []
                 for v in vals:
                     try:
@@ -176,10 +189,11 @@ CREDITOR_COLORS = {
 # ── Sidebar ──────────────────────────────────────────────────────────────────
 with st.sidebar:
     st.markdown("## 🌍 Sovereign Defaults")
-    st.markdown("*Database — Last Update: July 2025*")
+    st.markdown("*Database — Last Update: July 2026*")
     st.divider()
+    default_start = 1980 if years[0] <= 1980 <= years[-1] else years[0]
     year_range = st.slider("Year Range", min_value=years[0], max_value=years[-1],
-                           value=(1980, years[-1]))
+                           value=(default_start, years[-1]))
     st.divider()
     st.markdown("**Select Countries**")
     country_list = sorted(df_countries.index.tolist())
@@ -525,4 +539,4 @@ with tab3:
 
 # ── Footer ───────────────────────────────────────────────────────────────────
 st.divider()
-st.caption("Source: Database of Sovereign Defaults · Last Update: July 2025 · Built with Streamlit + Plotly")
+st.caption("Source: Database of Sovereign Defaults · Last Update: July 2026 · Built with Streamlit + Plotly")
