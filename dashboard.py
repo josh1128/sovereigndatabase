@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 import plotly.io as pio
+from plotly.subplots import make_subplots
 
 st.set_page_config(page_title="Sovereign Default Database", layout="wide", page_icon="🌍")
 
@@ -449,41 +450,49 @@ with tab_a:
                     "Development Bank. Other official creditors are bilateral and multilateral "
                     "creditors not identified separately. Other private creditors are mainly suppliers.")
 
-    # ═══ CHART 2: Default rates on FC bonds and bank loans ═══════════════════
+    # ═══ CHART 2: Default rates on FC bonds and bank loans (panels a & b) ════
     st.divider()
     st.subheader("Chart 2: Sovereign default rates on foreign currency bonds and bank loans")
-    c2a, c2b = st.columns([2, 1])
     bonds_ct = df_counts['FC bonds']
     loans_ct = df_counts['FC bank loans']
     rate_bonds = (bonds_ct / total_sovereigns * 100)
     rate_both = ((bonds_ct + loans_ct) / total_sovereigns * 100)
 
-    with c2a:
-        s = span()
-        fig2a = go.Figure()
-        fig2a.add_trace(go.Scatter(x=s, y=rate_bonds.loc[s], name='Foreign currency bonds',
-                                   line=dict(color='#c00000', width=2.5)))
-        fig2a.add_trace(go.Scatter(x=s, y=rate_both.loc[s], name='Foreign currency bonds and bank loans',
-                                   line=dict(color='#00b0f0', width=2.5)))
-        dark(fig2a, 360, legend=dict(orientation='h', y=-0.18),
-             yaxis=dict(title='% of all sovereigns'),
-             title=dict(text=f'a. Sovereign default rates, {s[0]}–{s[-1]}', x=0.02, font=dict(size=13)))
-        show_chart(fig2a, "chart2a_default_rates_long.html", "c2a")
+    s = span()
+    s2 = span(2020)
+    # Shared y-axis range so the two panels are directly comparable.
+    y_max = float(np.nanmax([rate_both.loc[s].max(), rate_both.loc[s2].max()])) if s and s2 else 10
+    y_top = max(5, np.ceil(y_max / 5) * 5)
 
-    with c2b:
-        s2 = span(2020)
-        fig2b = go.Figure()
-        fig2b.add_trace(go.Scatter(x=s2, y=rate_bonds.loc[s2], name='FC bonds',
-                                   line=dict(color='#c00000', width=2.5)))
-        fig2b.add_trace(go.Scatter(x=s2, y=rate_both.loc[s2], name='FC bonds and bank loans',
-                                   line=dict(color='#00b0f0', width=2.5)))
-        dark(fig2b, 360, showlegend=False, yaxis=dict(title='% of all sovereigns'),
-             xaxis=dict(dtick=1),
-             title=dict(text=f'b. Sovereign default rates, {s2[0]}–{s2[-1]}', x=0.02, font=dict(size=13)))
-        show_chart(fig2b, "chart2b_default_rates_recent.html", "c2b")
-    st.markdown("<div class='chart-note'>Default rates are the number of sovereigns in default "
-                "on each instrument as a share of all sovereigns. The combined series sums bond "
-                "and bank-loan defaulters.</div>", unsafe_allow_html=True)
+    fig2 = make_subplots(
+        rows=1, cols=2, shared_yaxes=True, horizontal_spacing=0.06,
+        column_widths=[0.62, 0.38],
+        subplot_titles=(f'a. Sovereign default rates, {s[0]}–{s[-1]}',
+                        f'b. Sovereign default rates, {s2[0]}–{s2[-1]}'))
+
+    for col, sp in [(1, s), (2, s2)]:
+        fig2.add_trace(go.Scatter(
+            x=sp, y=rate_bonds.loc[sp], name='Foreign currency bonds',
+            line=dict(color='#c00000', width=2.5), legendgroup='bonds',
+            showlegend=(col == 1),
+            hovertemplate='%{x}: %{y:.1f}%<extra>FC bonds</extra>'), row=1, col=col)
+        fig2.add_trace(go.Scatter(
+            x=sp, y=rate_both.loc[sp], name='Foreign currency bonds and bank loans',
+            line=dict(color='#00b0f0', width=2.5), legendgroup='both',
+            showlegend=(col == 1),
+            hovertemplate='%{x}: %{y:.1f}%<extra>FC bonds and bank loans</extra>'),
+            row=1, col=col)
+
+    dark(fig2, 430, legend=dict(orientation='h', y=-0.16, x=0.5, xanchor='center'))
+    fig2.update_yaxes(title_text='% of all sovereigns', range=[0, y_top], row=1, col=1)
+    fig2.update_yaxes(range=[0, y_top], showticklabels=True, row=1, col=2)
+    fig2.update_xaxes(dtick=1, row=1, col=2)
+    for ann in fig2.layout.annotations:
+        ann.font.size = 13
+    show_chart(fig2, "chart2_default_rates.html", "c2",
+               note="Default rates are the number of sovereigns in default on each instrument "
+                    "as a share of all sovereigns. The combined series sums bond and bank-loan "
+                    "defaulters. Panel b zooms into the most recent years on the same scale.")
 
     # ═══ CHART 3: Total sovereign debt in default by creditor ════════════════
     st.divider()
