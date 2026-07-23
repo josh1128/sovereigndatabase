@@ -297,6 +297,13 @@ def load_data():
 
 
 @st.cache_data(show_spinner=False)
+def plotly_png_bytes(fig_json, scale=2, width=1600, height=900):
+    """Render a Plotly figure to static PNG bytes (requires kaleido)."""
+    fig = pio.from_json(fig_json)
+    return fig.to_image(format="png", scale=scale, width=width, height=height)
+
+
+@st.cache_data(show_spinner=False)
 def plotly_html_bytes(fig_json):
     """Return a lightweight interactive Plotly HTML file as UTF-8 bytes."""
     fig = pio.from_json(fig_json)
@@ -332,20 +339,63 @@ def show_plotly_chart_with_download(fig, filename, key):
     )
 
     prepare_download = st.checkbox(
-        "Prepare HTML download",
+        "Prepare download",
         key=f"prepare_{key}",
-        help="Enable this only when you want to download this chart as an interactive HTML file.",
+        help="Enable this only when you want to export this chart as a file.",
     )
 
     if prepare_download:
-        st.download_button(
-            label="⬇️ Download interactive HTML",
-            data=plotly_html_bytes(fig.to_json()),
-            file_name=filename,
-            mime="text/html",
-            key=f"download_{key}",
-            help="The downloaded file loads Plotly from the internet when opened.",
-        )
+        col_fmt, col_scale = st.columns([1, 1])
+        with col_fmt:
+            fmt = st.radio(
+                "Format", ["HTML (interactive)", "PNG (image)"],
+                key=f"fmt_{key}", horizontal=True,
+            )
+        base_name = filename.rsplit(".", 1)[0]
+
+        if fmt.startswith("HTML"):
+            st.download_button(
+                label="⬇️ Download interactive HTML",
+                data=plotly_html_bytes(fig.to_json()),
+                file_name=f"{base_name}.html",
+                mime="text/html",
+                key=f"download_html_{key}",
+                help="The downloaded file loads Plotly from the internet when opened.",
+            )
+        else:
+            with col_scale:
+                scale = st.select_slider(
+                    "Resolution", options=[1, 2, 3, 4], value=2,
+                    format_func=lambda s: f"{s}x",
+                    key=f"scale_{key}",
+                    help="Higher values produce a larger, sharper image.",
+                )
+            try:
+                png = plotly_png_bytes(fig.to_json(), scale=scale)
+                st.download_button(
+                    label=f"⬇️ Download PNG ({scale}x)",
+                    data=png,
+                    file_name=f"{base_name}.png",
+                    mime="image/png",
+                    key=f"download_png_{key}",
+                    help="Static image export of the chart as currently configured.",
+                )
+            except Exception as e:
+                msg = str(e)
+                if "topojson" in msg.lower():
+                    st.error(
+                        "The map needs to fetch its base geometry (topojson) from "
+                        "cdn.plot.ly to render a PNG, and it couldn't be reached. "
+                        "Check your internet connection, or use the HTML export and "
+                        "save a PNG from the chart's camera icon instead."
+                    )
+                else:
+                    st.error(
+                        "PNG export needs the `kaleido` package. Install it with "
+                        "`pip install kaleido==0.2.1`, then restart the app. "
+                        "(HTML export works without it.)"
+                    )
+                st.caption(f"Details: {e}")
 
 
 df_creditors, df_debtors, df_rates, sov_in_default, total_sovereigns, df_countries, years = load_data()
