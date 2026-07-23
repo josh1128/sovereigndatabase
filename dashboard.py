@@ -315,6 +315,38 @@ def plotly_html_bytes(fig_json):
     ).encode("utf-8")
 
 
+def figure_with_note(fig, note, on_white=False):
+    """Return a copy of `fig` with the note stamped underneath, for file export.
+
+    The on-screen note is rendered by Streamlit and would otherwise be lost in
+    downloads, so it is baked into the figure itself and the bottom margin is
+    grown to make room for it.
+    """
+    import copy
+    import textwrap
+
+    out = copy.deepcopy(fig)
+    if not note:
+        return out
+
+    lines = textwrap.wrap(note, width=115) or [note]
+    # Sit below the legend if there is one, otherwise just below the axis.
+    legend_y = None
+    if out.layout.legend is not None and out.layout.legend.y is not None:
+        legend_y = out.layout.legend.y
+    note_y = (legend_y if legend_y is not None else -0.12) - 0.10
+
+    base_b = out.layout.margin.b if out.layout.margin.b is not None else 50
+    out.update_layout(margin=dict(b=base_b + 34 + 18 * len(lines)))
+    out.add_annotation(
+        text="<br>".join(lines),
+        xref='paper', yref='paper', x=0, y=note_y,
+        xanchor='left', yanchor='top', showarrow=False, align='left',
+        font=dict(size=11, color='#555' if on_white else '#9aa3b8'),
+    )
+    return out
+
+
 def show_chart(fig, filename, key, note=None):
     """Display a Plotly chart with an optional note and HTML/PNG export."""
     st.plotly_chart(fig, use_container_width=True,
@@ -330,9 +362,14 @@ def show_chart(fig, filename, key, note=None):
             fmt = st.radio("Format", ["HTML (interactive)", "PNG (image)"],
                            key=f"fmt_{key}", horizontal=True)
         base_name = filename.rsplit(".", 1)[0]
+        # The map renders on a white background; everything else is dark themed.
+        on_white = str(fig.layout.paper_bgcolor or '').lower() in ('white', '#fff', '#ffffff')
+        export_fig = figure_with_note(fig, note, on_white=on_white)
+        if note:
+            st.caption("The note below the chart is included in the downloaded file.")
         if fmt.startswith("HTML"):
             st.download_button("⬇️ Download interactive HTML",
-                               data=plotly_html_bytes(fig.to_json()),
+                               data=plotly_html_bytes(export_fig.to_json()),
                                file_name=f"{base_name}.html", mime="text/html",
                                key=f"download_html_{key}",
                                help="The downloaded file loads Plotly from the internet when opened.")
@@ -343,10 +380,10 @@ def show_chart(fig, filename, key, note=None):
                                          help="Higher values produce a larger, sharper image.")
             try:
                 st.download_button(f"⬇️ Download PNG ({scale}x)",
-                                   data=plotly_png_bytes(fig.to_json(), scale=scale),
+                                   data=plotly_png_bytes(export_fig.to_json(), scale=scale),
                                    file_name=f"{base_name}.png", mime="image/png",
                                    key=f"download_png_{key}",
-                                   help="Static image export of the chart as currently configured.")
+                                   help="Static image export of the chart, including its note.")
             except Exception as e:
                 if "topojson" in str(e).lower():
                     st.error("The map needs to fetch its base geometry (topojson) from "
