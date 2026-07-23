@@ -1,719 +1,438 @@
-import streamlit as st
-import pandas as pd
+"""Build chart_data.xlsx: one sheet per dashboard chart, mirroring app.py's parsing."""
 import numpy as np
-import plotly.graph_objects as go
-import plotly.io as pio
-from plotly.subplots import make_subplots
+import pandas as pd
+from openpyxl import Workbook
+from openpyxl.chart import (AreaChart, BarChart, LineChart, PieChart,
+                            Reference, Series)
+from openpyxl.chart.marker import Marker
+from openpyxl.chart.data_source import NumDataSource, NumRef
+from openpyxl.drawing.colors import ColorChoice
+from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+from openpyxl.utils import get_column_letter
 
-st.set_page_config(page_title="Sovereign Default Database", layout="wide", page_icon="🌍")
+SRC = "/mnt/user-data/uploads/data.xlsx"
+OUT = "/home/claude/chart_data.xlsx"
 
-# Country name -> ISO alpha-3 code, for the choropleth world map.
-# Dissolved states with no modern geometry map to None and render as "no data".
-ISO3_MAP = {
-    'Afghanistan': 'AFG',
-    'Albania': 'ALB',
-    'Algeria': 'DZA',
-    'Angola': 'AGO',
-    'Anguila': 'AIA',
-    'Antigua and Barbuda': 'ATG',
-    'Argentina': 'ARG',
-    'Armenia': 'ARM',
-    'Aruba': 'ABW',
-    'Azerbaijan': 'AZE',
-    'Bahamas': 'BHS',
-    'Bangladesh': 'BGD',
-    'Barbados': 'BRB',
-    'Belarus': 'BLR',
-    'Belize': 'BLZ',
-    'Benin': 'BEN',
-    'Bhutan': 'BTN',
-    'Bolivia': 'BOL',
-    'Bosnia & Herzegovina': 'BIH',
-    'Botswana': 'BWA',
-    'Brazil': 'BRA',
-    'Bulgaria': 'BGR',
-    'Burkina Faso': 'BFA',
-    'Burundi': 'BDI',
-    'Cabo Verde': 'CPV',
-    'Cambodia': 'KHM',
-    'Cameroon': 'CMR',
-    'Central African Republic': 'CAF',
-    'Chad': 'TCD',
-    'Chile': 'CHL',
-    'China': 'CHN',
-    'Colombia': 'COL',
-    'Comoros': 'COM',
-    'Rep. Of Congo (Brazzaville)': 'COG',
-    'Dem. Rep. of Congo (Kinshasa)': 'COD',
-    'Cook Islands': 'COK',
-    'Costa Rica': 'CRI',
-    'Côte d’Ivoire': 'CIV',
-    'Croatia': 'HRV',
-    'Cuba': 'CUB',
-    'Curaçao': 'CUW',
-    'Cyprus': 'CYP',
-    'Czechoslovakia': None,
-    'Djibouti': 'DJI',
-    'Dominica': 'DMA',
-    'Dominican Republic': 'DOM',
-    'Ecuador': 'ECU',
-    'Egypt': 'EGY',
-    'El Salvador': 'SLV',
-    'Equatorial Guinea': 'GNQ',
-    'Eritrea': 'ERI',
-    'Ethiopia': 'ETH',
-    'Fiji': 'FJI',
-    'Gabon': 'GAB',
-    'The Gambia': 'GMB',
-    'Georgia': 'GEO',
-    'Ghana': 'GHA',
-    'Greece': 'GRC',
-    'Grenada': 'GRD',
-    'Guatemala': 'GTM',
-    'Guinea': 'GIN',
-    'Guinea-Bissau': 'GNB',
-    'Guyana': 'GUY',
-    'Haiti': 'HTI',
-    'Honduras': 'HND',
-    'Hungary': 'HUN',
-    'India': 'IND',
-    'Indonesia': 'IDN',
-    'Iran': 'IRN',
-    'Iraq': 'IRQ',
-    'Ireland': 'IRL',
-    'Jamaica': 'JAM',
-    'Jordan': 'JOR',
-    'Kazakhstan': 'KAZ',
-    'Kenya': 'KEN',
-    "Korea, Democratic People's Republic of (North)": 'PRK',
-    'Kosovo': 'XKX',
-    'Kyrgyz Republic': 'KGZ',
-    'Laos': 'LAO',
-    'Latvia': 'LVA',
-    'Lebanon': 'LBN',
-    'Lesotho': 'LSO',
-    'Liberia': 'LBR',
-    'Libya': 'LBY',
-    'Lithuania': 'LTU',
-    'North Macedonia': 'MKD',
-    'Madagascar': 'MDG',
-    'Malawi': 'MWI',
-    'Malaysia': 'MYS',
-    'Maldives': 'MDV',
-    'Mali': 'MLI',
-    'Marshall Islands': 'MHL',
-    'Mauritania': 'MRT',
-    'Mauritius': 'MUS',
-    'Mexico': 'MEX',
-    'Micronesia': 'FSM',
-    'Moldova': 'MDA',
-    'Mongolia': 'MNG',
-    'Montenegro': 'MNE',
-    'Morocco': 'MAR',
-    'Mozambique': 'MOZ',
-    'Myanmar': 'MMR',
-    'Namibia': 'NAM',
-    'Nauru': 'NRU',
-    'Nepal': 'NPL',
-    'Netherlands Antilles': None,
-    'Nicaragua': 'NIC',
-    'Niger': 'NER',
-    'Nigeria': 'NGA',
-    'Pakistan': 'PAK',
-    'Palau': 'PLW',
-    'Panama': 'PAN',
-    'Papua New Guinea': 'PNG',
-    'Paraguay': 'PRY',
-    'Peru': 'PER',
-    'Philippines': 'PHL',
-    'Poland': 'POL',
-    'Portugal': 'PRT',
-    'Puerto Rico': 'PRI',
-    'Romania': 'ROU',
-    'Rwanda': 'RWA',
-    'St. Kitts & Nevis': 'KNA',
-    'St. Lucia': 'LCA',
-    'St. Vincent and the Grenadines': 'VCT',
-    'Samoa': 'WSM',
-    'São Tomé and Príncipe': 'STP',
-    'Senegal': 'SEN',
-    'Serbia': 'SRB',
-    'Seychelles': 'SYC',
-    'Sierra Leone': 'SLE',
-    'Sint Maarten': 'SXM',
-    'Slovak Republic': 'SVK',
-    'Slovenia': 'SVN',
-    'Solomon Islands': 'SLB',
-    'Somalia': 'SOM',
-    'South Africa': 'ZAF',
-    'South Sudan': 'SSD',
-    'Sri Lanka': 'LKA',
-    'Sudan': 'SDN',
-    'Suriname': 'SUR',
-    'eSwatini (Swaziland)': 'SWZ',
-    'Syria': 'SYR',
-    'Tajikistan': 'TJK',
-    'Tanzania': 'TZA',
-    'Thailand': 'THA',
-    'Togo': 'TGO',
-    'Tonga': 'TON',
-    'Trinidad & Tobago': 'TTO',
-    'Tunisia': 'TUN',
-    'Turkey': 'TUR',
-    'Turkmenistan': 'TKM',
-    'Tuvalu': 'TUV',
-    'Uganda': 'UGA',
-    'Ukraine': 'UKR',
-    'United Kingdom': 'GBR',
-    'Uruguay': 'URY',
-    'USSR/Russian Federation': 'RUS',
-    'Uzbekistan': 'UZB',
-    'Vanuatu': 'VUT',
-    'Venezuela': 'VEN',
-    'Vietnam': 'VNM',
-    'West Bank & Gaza': 'PSE',
-    'Yemen': 'YEM',
-    'Yugoslavia': None,
-    'Zambia': 'ZMB',
-    'Zimbabwe': 'ZWE',
-}
-
-# ── Palettes (matched to the published charts) ───────────────────────────────
-CREDITOR_ORDER = ['IMF', 'IBRD', 'IDA', 'IADB', 'Paris Club', 'China',
-                  'Other official creditors', 'FC bank loans', 'FC bonds',
-                  'Other private creditors', 'LC debt']
-CREDITOR_COLORS = {
-    'IMF': '#7b68a6', 'IBRD': '#ffff00', 'IDA': '#e8112d', 'IADB': '#3d7a99',
-    'Paris Club': '#1a7a3c', 'China': '#2e75b6', 'Other official creditors': '#ffc000',
-    'FC bank loans': '#ff9edb', 'FC bonds': '#8b6f47',
-    'Other private creditors': '#4caf50', 'LC debt': '#2b7a9e',
-}
-DEBTOR_ORDER = ['Advanced economies', 'Emerging-market and frontier economies',
-                'Heavily indebted poor countries', 'Other developing economies']
-DEBTOR_COLORS = {
-    'Advanced economies': '#e8112d',
-    'Emerging-market and frontier economies': '#4dc3e6',
-    'Heavily indebted poor countries': '#7030a0',
-    'Other developing economies': '#ffc000',
-}
-
-st.markdown("""
-<style>
-    .metric-card { background:#1e2130; border-radius:10px; padding:16px 20px; text-align:center; }
-    .metric-label { color:#9aa0b0; font-size:13px; margin-bottom:4px; }
-    .metric-value { color:#f0f4ff; font-size:26px; font-weight:700; }
-    .metric-sub { color:#6c8ebf; font-size:12px; margin-top:2px; }
-    section[data-testid="stSidebar"] { background:#12151f; }
-    .chart-note { color:#8b93a7; font-size:12px; line-height:1.5; margin-top:-6px; }
-</style>
-""", unsafe_allow_html=True)
+# ── Parse exactly as app.py does ─────────────────────────────────────────────
+raw = pd.read_excel(SRC, header=None)
+DATA_START = 3
+years, n_cols = [], 0
+for c in range(DATA_START, raw.shape[1]):
+    y = raw.iloc[0, c]
+    if pd.isna(y):
+        break
+    s = str(y).strip()
+    if s.endswith('p'):
+        s = s[:-1]
+    try:
+        years.append(int(float(s)))
+        n_cols += 1
+    except (ValueError, TypeError):
+        break
 
 
-@st.cache_data
-def load_data():
-    """Parse the workbook's summary block (section A) and country block (section B)."""
-    import os
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    df_raw = pd.read_excel(os.path.join(base_dir, "data.xlsx"), header=None)
-
-    # col 0 = country row number, col 1 = label / country name, col 2 = data
-    # score, first data column = col 3. Years run until a blank separator column;
-    # a second year block follows it and must be ignored. Projection years carry
-    # a trailing 'p' (e.g. '2025p').
-    DATA_START = 3
-    years, n_cols = [], 0
-    for c in range(DATA_START, df_raw.shape[1]):
-        y = df_raw.iloc[0, c]
-        if pd.isna(y):
-            break
-        s = str(y).strip()
-        if s.endswith('p'):
-            s = s[:-1]
+def row(idx):
+    vals = raw.iloc[idx, DATA_START:DATA_START + n_cols].values
+    out = []
+    for v in vals:
         try:
-            years.append(int(float(s)))
-            n_cols += 1
+            out.append(float(v) if pd.notna(v) and str(v).strip() != '****' else np.nan)
         except (ValueError, TypeError):
-            break
+            out.append(np.nan)
+    return pd.Series(out, index=years)
 
-    def get_row(row_idx):
-        vals = df_raw.iloc[row_idx, DATA_START:DATA_START + n_cols].values
-        out = []
+
+CREDITORS = {'IMF': 7, 'IBRD': 8, 'IDA': 9, 'IADB': 10, 'Paris Club': 11, 'China': 12,
+             'Other official creditors': 13, 'FC bank loans': 14, 'FC bonds': 15,
+             'Other private creditors': 16, 'LC debt': 17}
+DEBTORS = {'Advanced economies': 23, 'Emerging-market and frontier economies': 24,
+           'Heavily indebted poor countries': 25, 'Other developing economies': 26}
+COUNTS = {'IMF': 41, 'IBRD': 42, 'IDA': 43, 'IADB': 44, 'Paris Club': 45, 'China': 46,
+          'Other official creditors': 47, 'FC bank loans': 48, 'FC bonds': 49,
+          'Other private creditors': 50, 'LC debt': 51}
+
+total_debt = row(6)
+total_sov = row(38)
+LAST = max(y for y in years if pd.notna(total_debt[y]))
+
+# Country block
+countries = []
+for i in range(66, len(raw)):
+    iv = raw.iloc[i, 0]
+    if pd.notna(iv) and isinstance(iv, (int, float)):
+        name = str(raw.iloc[i, 1]).strip()
+        vals = raw.iloc[i, DATA_START:DATA_START + n_cols].values
+        ser = []
         for v in vals:
             try:
-                out.append(float(v) if pd.notna(v) and str(v).strip() != '****' else np.nan)
+                ser.append(float(v) if pd.notna(v) and str(v).strip() != '****' else np.nan)
             except (ValueError, TypeError):
-                out.append(np.nan)
-        return pd.Series(out, index=years)
+                ser.append(np.nan)
+        countries.append((name, ser))
+df_countries = pd.DataFrame([c[1] for c in countries],
+                            index=[c[0] for c in countries], columns=years)
 
-    # Debt in default by creditor (US$ mil) — rows 6–17
-    creditor_rows = {'Total': 6, 'IMF': 7, 'IBRD': 8, 'IDA': 9, 'IADB': 10,
-                     'Paris Club': 11, 'China': 12, 'Other official creditors': 13,
-                     'FC bank loans': 14, 'FC bonds': 15,
-                     'Other private creditors': 16, 'LC debt': 17}
-    df_creditors = pd.DataFrame({k: get_row(v) for k, v in creditor_rows.items()})
+# ── Styling ──────────────────────────────────────────────────────────────────
+FONT = "Arial"
+H_FILL = PatternFill("solid", fgColor="1F3864")
+H_FONT = Font(name=FONT, bold=True, color="FFFFFF", size=10)
+TITLE_FONT = Font(name=FONT, bold=True, size=13, color="1F3864")
+SUB_FONT = Font(name=FONT, italic=True, size=9, color="595959")
+BODY = Font(name=FONT, size=10)
+FORMULA_FONT = Font(name=FONT, size=10, color="008000")  # green = derived
+THIN = Side(style="thin", color="BFBFBF")
+BORDER = Border(bottom=THIN)
 
-    # Debt in default by debtor (US$ mil) — rows 22–26
-    debtor_rows = {'Total': 22, 'Advanced economies': 23,
-                   'Emerging-market and frontier economies': 24,
-                   'Heavily indebted poor countries': 25,
-                   'Other developing economies': 26}
-    df_debtors = pd.DataFrame({k: get_row(v) for k, v in debtor_rows.items()})
+wb = Workbook()
+wb.remove(wb.active)
 
-    # Default rates (%) — rows 31–36
-    df_rates = pd.DataFrame({
-        '% of all Sovereigns': get_row(31),
-        '% of World Public Debt': get_row(34),
-        '% of EM/Other Developing GDP': get_row(35),
-        '% of World GDP': get_row(36),
-    })
-
-    # Counts — row 38 total sovereigns, row 40 total in default, rows 41–51 by creditor
-    count_rows = {'Total in default': 40, 'IMF': 41, 'IBRD': 42, 'IDA': 43, 'IADB': 44,
-                  'Paris Club': 45, 'China': 46, 'Other official creditors': 47,
-                  'FC bank loans': 48, 'FC bonds': 49,
-                  'Other private creditors': 50, 'LC debt': 51}
-    df_counts = pd.DataFrame({k: get_row(v) for k, v in count_rows.items()})
-    total_sovereigns = get_row(38)
-
-    # Country-level debt in default (rows 66 onward)
-    countries = []
-    for i in range(66, len(df_raw)):
-        idx_val = df_raw.iloc[i, 0]
-        if pd.notna(idx_val) and isinstance(idx_val, (int, float)):
-            name = str(df_raw.iloc[i, 1]).strip()
-            vals = df_raw.iloc[i, DATA_START:DATA_START + n_cols].values
-            ser = []
-            for v in vals:
-                try:
-                    ser.append(float(v) if pd.notna(v) and str(v).strip() != '****' else np.nan)
-                except (ValueError, TypeError):
-                    ser.append(np.nan)
-            countries.append({'name': name, 'total': ser})
-    df_countries = pd.DataFrame([c['total'] for c in countries],
-                                index=[c['name'] for c in countries], columns=years)
-
-    return (df_creditors, df_debtors, df_rates, df_counts,
-            total_sovereigns, df_countries, years)
+# ── Chart palette (hex, matching the dashboard/published charts) ─────────────
+CRED_HEX = {'IMF': '7B68A6', 'IBRD': 'FFFF00', 'IDA': 'E8112D', 'IADB': '3D7A99',
+            'Paris Club': '1A7A3C', 'China': '2E75B6', 'Other official creditors': 'FFC000',
+            'FC bank loans': 'FF9EDB', 'FC bonds': '8B6F47',
+            'Other private creditors': '4CAF50', 'LC debt': '2B7A9E'}
+DEBT_HEX = {'Advanced economies': 'E8112D',
+            'Emerging-market and frontier economies': '4DC3E6',
+            'Heavily indebted poor countries': '7030A0',
+            'Other developing economies': 'FFC000'}
 
 
-@st.cache_data(show_spinner=False)
-def plotly_png_bytes(fig_json, scale=2, width=1600, height=900):
-    """Render a Plotly figure to static PNG bytes (requires kaleido)."""
-    return pio.from_json(fig_json).to_image(format="png", scale=scale,
-                                            width=width, height=height)
+def style_chart(ch, title, y_title, x_title="Year", width=30, height=13):
+    ch.title = title
+    ch.y_axis.title = y_title
+    ch.x_axis.title = x_title
+    ch.width = width
+    ch.height = height
+    ch.style = 2
+    # Keep axes visible (openpyxl can otherwise drop them in some viewers)
+    ch.x_axis.delete = False
+    ch.y_axis.delete = False
+    return ch
 
 
-@st.cache_data(show_spinner=False)
-def plotly_html_bytes(fig_json):
-    """Return a lightweight interactive Plotly HTML file as UTF-8 bytes."""
-    fig = pio.from_json(fig_json)
-    return pio.to_html(
-        fig, full_html=True, include_plotlyjs="cdn",
-        config={"responsive": True, "displaylogo": False, "scrollZoom": True,
-                "toImageButtonOptions": {"format": "png", "scale": 2}},
-        default_width="100%", default_height="100%",
-    ).encode("utf-8")
+def color_series(ch, hex_map, names):
+    """Apply solid fills (and matching line colors) to each series in order."""
+    for s, nm in zip(ch.series, names):
+        hx = hex_map.get(nm)
+        if not hx:
+            continue
+        s.graphicalProperties.solidFill = hx
+        s.graphicalProperties.line.solidFill = hx
 
 
-def figure_with_note(fig, note, on_white=False):
-    """Return a copy of `fig` with the note stamped underneath, for file export.
-
-    The on-screen note is rendered by Streamlit and would otherwise be lost in
-    downloads, so it is baked into the figure itself and the bottom margin is
-    grown to make room for it.
-    """
-    import copy
-    import textwrap
-
-    out = copy.deepcopy(fig)
-    if not note:
-        return out
-
-    lines = textwrap.wrap(note, width=115) or [note]
-    # Sit below the legend if there is one, otherwise just below the axis.
-    legend_y = None
-    if out.layout.legend is not None and out.layout.legend.y is not None:
-        legend_y = out.layout.legend.y
-    note_y = (legend_y if legend_y is not None else -0.12) - 0.10
-
-    base_b = out.layout.margin.b if out.layout.margin.b is not None else 50
-    out.update_layout(margin=dict(b=base_b + 34 + 18 * len(lines)))
-    out.add_annotation(
-        text="<br>".join(lines),
-        xref='paper', yref='paper', x=0, y=note_y,
-        xanchor='left', yanchor='top', showarrow=False, align='left',
-        font=dict(size=11, color='#555' if on_white else '#9aa3b8'),
-    )
-    return out
+def add_cat_chart(ws, cls, first_col, last_col, n_rows, header_row, anchor,
+                  title, y_title, grouping=None, overlap=None, hex_map=None,
+                  names=None, marker=False, width=30, height=13):
+    """Build a chart from a table laid out as Year in col A, series across."""
+    ch = cls()
+    data = Reference(ws, min_col=first_col, max_col=last_col,
+                     min_row=header_row, max_row=header_row + n_rows)
+    cats = Reference(ws, min_col=1, min_row=header_row + 1, max_row=header_row + n_rows)
+    ch.add_data(data, titles_from_data=True)
+    ch.set_categories(cats)
+    if grouping:
+        ch.grouping = grouping
+        if overlap is not None:
+            ch.overlap = overlap
+    style_chart(ch, title, y_title, width=width, height=height)
+    if hex_map and names:
+        color_series(ch, hex_map, names)
+    if marker:
+        for s in ch.series:
+            s.marker = Marker(symbol='none')
+            s.smooth = False
+    ws.add_chart(ch, anchor)
+    return ch
 
 
-def show_chart(fig, filename, key, note=None):
-    """Display a Plotly chart with an optional note and HTML/PNG export."""
-    st.plotly_chart(fig, use_container_width=True,
-                    config={"responsive": True, "displaylogo": False},
-                    key=f"chart_{key}")
-    if note:
-        st.markdown(f"<div class='chart-note'>{note}</div>", unsafe_allow_html=True)
-
-    if st.checkbox("Prepare download", key=f"prepare_{key}",
-                   help="Enable this only when you want to export this chart as a file."):
-        col_fmt, col_scale = st.columns([1, 1])
-        with col_fmt:
-            fmt = st.radio("Format", ["HTML (interactive)", "PNG (image)"],
-                           key=f"fmt_{key}", horizontal=True)
-        base_name = filename.rsplit(".", 1)[0]
-        # The map renders on a white background; everything else is dark themed.
-        on_white = str(fig.layout.paper_bgcolor or '').lower() in ('white', '#fff', '#ffffff')
-        export_fig = figure_with_note(fig, note, on_white=on_white)
-        if note:
-            st.caption("The note below the chart is included in the downloaded file.")
-        if fmt.startswith("HTML"):
-            st.download_button("⬇️ Download interactive HTML",
-                               data=plotly_html_bytes(export_fig.to_json()),
-                               file_name=f"{base_name}.html", mime="text/html",
-                               key=f"download_html_{key}",
-                               help="The downloaded file loads Plotly from the internet when opened.")
-        else:
-            with col_scale:
-                scale = st.select_slider("Resolution", options=[1, 2, 3, 4], value=2,
-                                         format_func=lambda s: f"{s}x", key=f"scale_{key}",
-                                         help="Higher values produce a larger, sharper image.")
-            try:
-                st.download_button(f"⬇️ Download PNG ({scale}x)",
-                                   data=plotly_png_bytes(export_fig.to_json(), scale=scale),
-                                   file_name=f"{base_name}.png", mime="image/png",
-                                   key=f"download_png_{key}",
-                                   help="Static image export of the chart, including its note.")
-            except Exception as e:
-                if "topojson" in str(e).lower():
-                    st.error("The map needs to fetch its base geometry (topojson) from "
-                             "cdn.plot.ly to render a PNG, and it couldn't be reached. "
-                             "Use the HTML export and save a PNG from the camera icon instead.")
-                else:
-                    st.error("PNG export needs the `kaleido` package. Install it with "
-                             "`pip install kaleido==0.2.1`, then restart the app. "
-                             "(HTML export works without it.)")
-                st.caption(f"Details: {e}")
+def new_sheet(name, title, subtitle, note):
+    ws = wb.create_sheet(name)
+    ws["A1"] = title
+    ws["A1"].font = TITLE_FONT
+    ws["A2"] = subtitle
+    ws["A2"].font = SUB_FONT
+    ws["A3"] = f"Note: {note}"
+    ws["A3"].font = SUB_FONT
+    ws["A3"].alignment = Alignment(wrap_text=False)
+    ws.freeze_panes = "B6"
+    return ws
 
 
-def dark(fig, height, **kw):
-    """Shared dark-theme layout."""
-    fig.update_layout(template='plotly_dark', height=height,
-                      margin=dict(l=60, r=30, t=30, b=50),
-                      hovermode='x unified', paper_bgcolor='rgba(0,0,0,0)',
-                      plot_bgcolor='rgba(0,0,0,0)', **kw)
-    return fig
+def write_table(ws, header_row, headers, index_vals, data_cols, numfmt="#,##0.0"):
+    """Write a table with `Year` (or label) in col A starting at header_row."""
+    for j, h in enumerate(headers):
+        c = ws.cell(row=header_row, column=1 + j, value=h)
+        c.font = H_FONT
+        c.fill = H_FILL
+        c.alignment = Alignment(horizontal="center", wrap_text=True, vertical="center")
+    for i, idx in enumerate(index_vals):
+        r = header_row + 1 + i
+        c = ws.cell(row=r, column=1, value=idx)
+        c.font = BODY
+        c.border = BORDER
+        if isinstance(idx, int):
+            c.number_format = "0"
+        for j, col in enumerate(data_cols):
+            v = col[i]
+            cc = ws.cell(row=r, column=2 + j,
+                         value=(None if (isinstance(v, float) and np.isnan(v)) else v))
+            cc.font = BODY
+            cc.number_format = numfmt
+            cc.border = BORDER
+    ws.column_dimensions["A"].width = 30
+    for j in range(len(headers) - 1):
+        ws.column_dimensions[get_column_letter(2 + j)].width = 15
+    ws.row_dimensions[header_row].height = 42
 
 
-(df_creditors, df_debtors, df_rates, df_counts,
- total_sovereigns, df_countries, years) = load_data()
+SRC_NOTE = "Source: BoC–BoE Sovereign Default Database (data.xlsx, July 22 2026 update)."
 
-LAST_OBS = max(y for y in years if pd.notna(df_creditors.loc[y, 'Total']))
+# ── README ───────────────────────────────────────────────────────────────────
+ws = wb.create_sheet("README")
+ws["A1"] = "Dashboard chart data — source and derivation"
+ws["A1"].font = Font(name=FONT, bold=True, size=15, color="1F3864")
+readme = [
+    ("", ""),
+    ("Purpose", "One sheet per chart in the Streamlit dashboard, holding exactly the series each chart plots."),
+    ("Source file", "data.xlsx — 'Database of Sovereign Defaults', last update July 22 2026."),
+    ("Parsing", "Data begins at spreadsheet column D (index 3); years are read from row 1 until the first"),
+    ("", "blank column. A second year block follows that blank column and is deliberately ignored."),
+    ("Projections", f"The final year ({LAST}) is flagged '2025p' in the source and is a projection."),
+    ("Units", "Debt values are US$ millions in the source; charts divide by 1,000 to show US$ billions."),
+    ("Green cells", "Values shown in green are live formulas (derived series), not pasted numbers."),
+    ("Missing data", "Blank cells mean no data ('****' or empty in the source)."),
+    ("", ""),
+    ("Sheet", "Chart and source rows in data.xlsx (1-based row numbers)"),
+    ("Chart 1", "Share of debt in default by creditor (pie) — rows 8–18, share of row 7 total."),
+    ("Chart 2", "Default rates on FC bonds / bonds+bank loans — counts rows 49–50, sovereigns row 39."),
+    ("Chart 3", "Total debt in default by creditor (stacked bars) — rows 8–18."),
+    ("Chart 4", "Debt in default by debtor group (stacked bars) — rows 24–27."),
+    ("Chart 5", "Proportion of debt in default by creditor (100% area) — rows 8–18, rescaled to 100%."),
+    ("Chart 6", "Paris Club and China official loans in default — rows 12–13."),
+    ("Chart 7", "Shares of global public debt and GDP — rows 35, 36, 37."),
+    ("Chart 8", "Number of sovereign defaults by instrument — rows 49, 50, 52."),
+    ("Map", "Debt in default by country — country block from row 67 onward."),
+    ("", ""),
+    ("Caveat — Chart 2", "The combined series sums bond and bank-loan defaulters; a sovereign in default"),
+    ("", "on both instruments is therefore counted twice. The source has no union count."),
+    ("Caveat — Chart 2", "Panel (a) of the published chart covers 1820–2020 using Suter (1992); that historical"),
+    ("", "series is not in this workbook, so the dashboard shows the database's own period."),
+]
+for i, (k, v) in enumerate(readme, start=3):
+    a = ws.cell(row=i, column=1, value=k)
+    a.font = Font(name=FONT, bold=True, size=10)
+    b = ws.cell(row=i, column=2, value=v)
+    b.font = Font(name=FONT, size=10)
+ws.column_dimensions["A"].width = 20
+ws.column_dimensions["B"].width = 105
 
-# ── Sidebar ──────────────────────────────────────────────────────────────────
-with st.sidebar:
-    st.markdown("## 🌍 Sovereign Defaults")
-    st.markdown("*BoC–BoE Sovereign Default Database*")
-    st.markdown("*Last Update: July 2026*")
-    st.divider()
-    year_range = st.slider("Year range", min_value=years[0], max_value=years[-1],
-                           value=(1976, LAST_OBS))
-    st.caption("Each chart clamps this range to the period it covers.")
-    st.divider()
-    st.markdown("**Creditors to show** (Charts 3 & 5)")
-    sel_creditors = st.multiselect("Creditors", options=CREDITOR_ORDER,
-                                   default=CREDITOR_ORDER, label_visibility="collapsed")
+# ── Chart 1: pie shares (formulas) ───────────────────────────────────────────
+ws = new_sheet("Chart 1", f"Chart 1: Total share of debt in default by creditor, {LAST}",
+               "US$ millions and share of total.", SRC_NOTE)
+names = list(CREDITORS)
+ws.cell(row=6, column=1, value="Creditor").font = H_FONT
+ws.cell(row=6, column=1).fill = H_FILL
+for j, h in enumerate(["Debt in default (US$ mil)", "Share of total (%)"]):
+    c = ws.cell(row=6, column=2 + j, value=h)
+    c.font = H_FONT
+    c.fill = H_FILL
+    c.alignment = Alignment(horizontal="center", wrap_text=True, vertical="center")
+for i, nm in enumerate(names):
+    r = 7 + i
+    ws.cell(row=r, column=1, value=nm).font = BODY
+    v = row(CREDITORS[nm])[LAST]
+    ws.cell(row=r, column=2, value=None if pd.isna(v) else float(v)).font = BODY
+    ws.cell(row=r, column=2).number_format = "#,##0.0"
+    f = ws.cell(row=r, column=3, value=f"=IFERROR(B{r}/$B${7+len(names)},0)")
+    f.font = FORMULA_FONT
+    f.number_format = "0.0%"
+tr = 7 + len(names)
+ws.cell(row=tr, column=1, value="Total").font = Font(name=FONT, bold=True, size=10)
+ws.cell(row=tr, column=2, value=f"=SUM(B7:B{tr-1})").font = Font(name=FONT, bold=True, size=10, color="008000")
+ws.cell(row=tr, column=2).number_format = "#,##0.0"
+ws.cell(row=tr, column=3, value=f"=SUM(C7:C{tr-1})").font = Font(name=FONT, bold=True, size=10, color="008000")
+ws.cell(row=tr, column=3).number_format = "0.0%"
+ws.column_dimensions["A"].width = 32
+ws.column_dimensions["B"].width = 24
+ws.column_dimensions["C"].width = 18
+ws.row_dimensions[6].height = 30
 
-y0, y1 = year_range
+pie = PieChart()
+pie.add_data(Reference(ws, min_col=2, min_row=6, max_row=6 + len(names)), titles_from_data=True)
+pie.set_categories(Reference(ws, min_col=1, min_row=7, max_row=6 + len(names)))
+pie.title = f"Chart 1: Share of debt in default by creditor, {LAST}"
+pie.width, pie.height = 22, 14
+pie.dataLabels = None
+ws.add_chart(pie, "E6")
 
+# ── Chart 2: default rates (formulas from counts) ────────────────────────────
+ws = new_sheet("Chart 2", "Chart 2: Sovereign default rates on FC bonds and bank loans",
+               "Counts of sovereigns in default, and rates as a share of all sovereigns.",
+               "Combined series sums bond and bank-loan defaulters (double-counts sovereigns in default on both). " + SRC_NOTE)
+hdr = ["Year", "Sovereigns in default: FC bonds", "Sovereigns in default: FC bank loans",
+       "Total sovereigns", "FC bonds (%)", "FC bonds and bank loans (%)"]
+for j, h in enumerate(hdr):
+    c = ws.cell(row=6, column=1 + j, value=h)
+    c.font = H_FONT
+    c.fill = H_FILL
+    c.alignment = Alignment(horizontal="center", wrap_text=True, vertical="center")
+b_ct, l_ct = row(COUNTS['FC bonds']), row(COUNTS['FC bank loans'])
+for i, y in enumerate(years):
+    r = 7 + i
+    ws.cell(row=r, column=1, value=y).font = BODY
+    ws.cell(row=r, column=1).number_format = "0"
+    for j, ser in enumerate([b_ct, l_ct, total_sov]):
+        v = ser[y]
+        cc = ws.cell(row=r, column=2 + j, value=None if pd.isna(v) else float(v))
+        cc.font = BODY
+        cc.number_format = "#,##0"
+    f1 = ws.cell(row=r, column=5, value=f"=IFERROR(B{r}/D{r},\"\")")
+    f2 = ws.cell(row=r, column=6, value=f"=IFERROR((B{r}+C{r})/D{r},\"\")")
+    for f in (f1, f2):
+        f.font = FORMULA_FONT
+        f.number_format = "0.0%"
+ws.column_dimensions["A"].width = 10
+for col in "BCDEF":
+    ws.column_dimensions[col].width = 20
+ws.row_dimensions[6].height = 44
 
-def span(lo=None, hi=None):
-    """Years inside the sidebar range, optionally clamped to a chart's own period."""
-    a = max(y0, lo) if lo else y0
-    b = min(y1, hi) if hi else y1
-    return [y for y in years if a <= y <= b]
+add_cat_chart(ws, LineChart, 5, 6, len(years), 6, "H6",
+              "Chart 2: Sovereign default rates on FC bonds and bank loans",
+              "% of all sovereigns", marker=True)
 
+# ── Chart 3: debt by creditor ────────────────────────────────────────────────
+ws = new_sheet("Chart 3", "Chart 3: Total sovereign debt in default by creditor",
+               "US$ millions (dashboard plots US$ billions = these values / 1,000).",
+               "LC is local currency, FC is foreign currency. " + SRC_NOTE)
+cols = [[row(v)[y] for y in years] for v in CREDITORS.values()]
+write_table(ws, 6, ["Year"] + names, years, cols)
+add_cat_chart(ws, BarChart, 2, 1 + len(names), len(years), 6, "N6",
+              "Chart 3: Total sovereign debt in default by creditor",
+              "US$ millions", grouping="stacked", overlap=100,
+              hex_map=CRED_HEX, names=names, width=34, height=15)
 
-# ── Header + KPIs ────────────────────────────────────────────────────────────
-st.title("🌍 Sovereign Default Database")
-st.caption(f"Last observation: **{LAST_OBS}** · {len(df_countries)} countries tracked "
-           f"· showing **{y0}–{y1}**")
+# ── Chart 4: debt by debtor ──────────────────────────────────────────────────
+ws = new_sheet("Chart 4", "Chart 4: Sovereign debt in default by debtor",
+               "US$ millions (dashboard plots US$ billions).", SRC_NOTE)
+dcols = [[row(v)[y] for y in years] for v in DEBTORS.values()]
+write_table(ws, 6, ["Year"] + list(DEBTORS), years, dcols)
+add_cat_chart(ws, BarChart, 2, 1 + len(DEBTORS), len(years), 6, "G6",
+              "Chart 4: Sovereign debt in default by debtor",
+              "US$ millions", grouping="stacked", overlap=100,
+              hex_map=DEBT_HEX, names=list(DEBTORS), width=34, height=15)
 
-k1, k2, k3, k4 = st.columns(4)
-tot_latest = df_creditors.loc[LAST_OBS, 'Total']
-rate_latest = df_rates.loc[LAST_OBS, '% of all Sovereigns']
-n_latest = df_counts.loc[LAST_OBS, 'Total in default']
-gdp_latest = df_rates.loc[LAST_OBS, '% of World GDP']
-for col, lab, val, sub in [
-    (k1, f"Total debt in default ({LAST_OBS})", f"${tot_latest/1e3:,.0f}B", "US$ billions"),
-    (k2, f"Sovereigns in default ({LAST_OBS})", f"{int(n_latest)}", f"of {int(total_sovereigns[LAST_OBS])} sovereigns"),
-    (k3, "Share of all sovereigns", f"{rate_latest:.1f}%", "in default"),
-    (k4, "Share of world GDP", f"{gdp_latest:.2f}%", "debt in default"),
-]:
-    with col:
-        st.markdown(f"""<div class="metric-card">
-            <div class="metric-label">{lab}</div>
-            <div class="metric-value">{val}</div>
-            <div class="metric-sub">{sub}</div>
-        </div>""", unsafe_allow_html=True)
+# ── Chart 5: proportions (formulas) ──────────────────────────────────────────
+ws = new_sheet("Chart 5", "Chart 5: Proportion of debt in default by creditor",
+               "Each creditor as a share of total debt in default (%).",
+               "Shares are computed from the Chart 3 levels and sum to 100% each year. " + SRC_NOTE)
+for j, h in enumerate(["Year"] + names):
+    c = ws.cell(row=6, column=1 + j, value=h)
+    c.font = H_FONT
+    c.fill = H_FILL
+    c.alignment = Alignment(horizontal="center", wrap_text=True, vertical="center")
+ncred = len(names)
+for i, y in enumerate(years):
+    r = 7 + i
+    ws.cell(row=r, column=1, value=y).font = BODY
+    ws.cell(row=r, column=1).number_format = "0"
+    for j in range(ncred):
+        src_col = get_column_letter(2 + j)
+        f = ws.cell(row=r, column=2 + j,
+                    value=f"=IFERROR('Chart 3'!{src_col}{r}/SUM('Chart 3'!$B{r}:$L{r}),\"\")")
+        f.font = FORMULA_FONT
+        f.number_format = "0.0%"
+ws.column_dimensions["A"].width = 10
+for j in range(ncred):
+    ws.column_dimensions[get_column_letter(2 + j)].width = 15
+ws.row_dimensions[6].height = 42
 
-st.markdown("<br>", unsafe_allow_html=True)
+add_cat_chart(ws, AreaChart, 2, 1 + ncred, len(years), 6, "N6",
+              "Chart 5: Proportion of debt in default by creditor",
+              "% of total debt in default", grouping="percentStacked",
+              hex_map=CRED_HEX, names=names, width=34, height=15)
 
-tab_a, tab_b, tab_c, tab_map = st.tabs([
-    "📊 Charts 1–3", "📈 Charts 4–6", "📉 Charts 7–8", "🗺️ Map"])
+# ── Chart 6: Paris Club & China ──────────────────────────────────────────────
+ws = new_sheet("Chart 6", "Chart 6: Official loans in default for Paris Club and China",
+               "US$ millions (dashboard plots US$ billions).", SRC_NOTE)
+write_table(ws, 6, ["Year", "Paris Club", "China"], years,
+            [[row(11)[y] for y in years], [row(12)[y] for y in years]])
+add_cat_chart(ws, BarChart, 2, 3, len(years), 6, "F6",
+              "Chart 6: Official loans in default for Paris Club and China",
+              "US$ millions", grouping="stacked", overlap=100,
+              hex_map={'Paris Club': 'FF0000', 'China': '5B9BD5'},
+              names=['Paris Club', 'China'], width=32, height=14)
 
-# ═══ CHART 1: Share of debt in default by creditor (pie) ═════════════════════
-with tab_a:
-    st.subheader(f"Chart 1: Total share of debt in default by creditor, {LAST_OBS}")
-    pie_year = st.select_slider("Year", options=[y for y in years if pd.notna(df_creditors.loc[y, 'Total'])],
-                                value=LAST_OBS, key="c1_year")
-    total_pie = df_creditors.loc[pie_year, 'Total']
-    labels, vals, cols = [], [], []
-    for c in CREDITOR_ORDER:
-        v = df_creditors.loc[pie_year, c]
-        if pd.notna(v) and v > 0:
-            labels.append(c); vals.append(v); cols.append(CREDITOR_COLORS[c])
-    fig1 = go.Figure(go.Pie(
-        labels=labels, values=vals, marker_colors=cols, sort=False,
-        textinfo='label+percent', textposition='auto',
-        insidetextfont=dict(size=12), hole=0,
-        hovertemplate='<b>%{label}</b><br>$%{value:,.0f}M<br>%{percent}<extra></extra>'))
-    fig1.update_layout(template='plotly_dark', height=520, showlegend=True,
-                       legend=dict(orientation='v', x=1.02, y=0.5, font=dict(size=11)),
-                       margin=dict(l=20, r=20, t=20, b=20),
-                       paper_bgcolor='rgba(0,0,0,0)')
-    show_chart(fig1, f"chart1_share_by_creditor_{pie_year}.html", "c1",
-               note="LC is local currency and FC is foreign currency. IADB is Inter-American "
-                    "Development Bank. Other official creditors are bilateral and multilateral "
-                    "creditors not identified separately. Other private creditors are mainly suppliers.")
+# ── Chart 7: shares of debt and GDP ──────────────────────────────────────────
+ws = new_sheet("Chart 7", "Chart 7: Debt in default as a share of global public debt and GDP",
+               "Percent. Nominal GDP is used.", SRC_NOTE)
+write_table(ws, 6,
+            ["Year", "Share of global public debt (%)", "Share of world GDP (%)",
+             "Share of EM/other developing GDP (%)"],
+            years,
+            [[row(34)[y] for y in years], [row(36)[y] for y in years],
+             [row(35)[y] for y in years]], numfmt="0.00")
+add_cat_chart(ws, LineChart, 2, 4, len(years), 6, "G6",
+              "Chart 7: Debt in default as a share of global public debt and GDP",
+              "%", hex_map={'Share of global public debt (%)': 'A52929',
+                            'Share of world GDP (%)': '2E9BD6',
+                            'Share of EM/other developing GDP (%)': 'F5A623'},
+              names=["Share of global public debt (%)", "Share of world GDP (%)",
+                     "Share of EM/other developing GDP (%)"],
+              marker=True, width=32, height=14)
 
-    # ═══ CHART 2: Default rates on FC bonds and bank loans (panels a & b) ════
-    st.divider()
-    st.subheader("Chart 2: Sovereign default rates on foreign currency bonds and bank loans")
-    bonds_ct = df_counts['FC bonds']
-    loans_ct = df_counts['FC bank loans']
-    rate_bonds = (bonds_ct / total_sovereigns * 100)
-    rate_both = ((bonds_ct + loans_ct) / total_sovereigns * 100)
+# ── Chart 8: number of defaults ──────────────────────────────────────────────
+ws = new_sheet("Chart 8", "Chart 8: Number of sovereign defaults by instrument",
+               "Count of sovereigns in default.",
+               "FC is foreign currency, LC is local currency. " + SRC_NOTE)
+write_table(ws, 6, ["Year", "FC bank loans", "FC bonds", "LC debt"], years,
+            [[row(48)[y] for y in years], [row(49)[y] for y in years],
+             [row(51)[y] for y in years]], numfmt="#,##0")
+add_cat_chart(ws, LineChart, 2, 4, len(years), 6, "G6",
+              "Chart 8: Number of sovereign defaults by instrument",
+              "Number of sovereigns",
+              hex_map={'FC bank loans': '2E75B6', 'FC bonds': 'C0504D', 'LC debt': '9BBB59'},
+              names=["FC bank loans", "FC bonds", "LC debt"],
+              marker=True, width=32, height=14)
 
-    s = span()
-    s2 = span(2020)
-    # Shared y-axis range so the two panels are directly comparable.
-    y_max = float(np.nanmax([rate_both.loc[s].max(), rate_both.loc[s2].max()])) if s and s2 else 10
-    y_top = max(5, np.ceil(y_max / 5) * 5)
+# ── Map: country data ────────────────────────────────────────────────────────
+ws = new_sheet("Map", "Map: Total debt in default by country",
+               "US$ millions, by country and year.",
+               "Grey on the map = no data or zero. " + SRC_NOTE)
+ccols = [[df_countries.loc[nm, y] for nm in df_countries.index] for y in years]
+write_table(ws, 6, ["Country"] + [str(y) for y in years],
+            list(df_countries.index), ccols)
+ws.column_dimensions["A"].width = 36
 
-    fig2 = make_subplots(
-        rows=1, cols=2, shared_yaxes=True, horizontal_spacing=0.06,
-        column_widths=[0.62, 0.38],
-        subplot_titles=(f'a. Sovereign default rates, {s[0]}–{s[-1]}',
-                        f'b. Sovereign default rates, {s2[0]}–{s2[-1]}'))
+# A 166-row chart is unreadable, so chart the top 15 defaulters in the latest year.
+top = df_countries[LAST].dropna()
+top = top[top > 0].sort_values(ascending=False).head(15)
+start = 6 + len(df_countries) + 3
+ws.cell(row=start - 1, column=1,
+        value=f"Top 15 countries by debt in default, {LAST} (US$ millions)").font = TITLE_FONT
+for j, h in enumerate(["Country", f"Debt in default {LAST}"]):
+    c = ws.cell(row=start, column=1 + j, value=h)
+    c.font = H_FONT
+    c.fill = H_FILL
+    c.alignment = Alignment(horizontal="center", wrap_text=True, vertical="center")
+for i, (nm, v) in enumerate(top.items()):
+    ws.cell(row=start + 1 + i, column=1, value=nm).font = BODY
+    cc = ws.cell(row=start + 1 + i, column=2, value=float(v))
+    cc.font = BODY
+    cc.number_format = "#,##0.0"
 
-    for col, sp in [(1, s), (2, s2)]:
-        fig2.add_trace(go.Scatter(
-            x=sp, y=rate_bonds.loc[sp], name='Foreign currency bonds',
-            line=dict(color='#c00000', width=2.5), legendgroup='bonds',
-            showlegend=(col == 1),
-            hovertemplate='%{x}: %{y:.1f}%<extra>FC bonds</extra>'), row=1, col=col)
-        fig2.add_trace(go.Scatter(
-            x=sp, y=rate_both.loc[sp], name='Foreign currency bonds and bank loans',
-            line=dict(color='#00b0f0', width=2.5), legendgroup='both',
-            showlegend=(col == 1),
-            hovertemplate='%{x}: %{y:.1f}%<extra>FC bonds and bank loans</extra>'),
-            row=1, col=col)
+bar = BarChart()
+bar.type = "bar"
+bar.add_data(Reference(ws, min_col=2, min_row=start, max_row=start + len(top)),
+             titles_from_data=True)
+bar.set_categories(Reference(ws, min_col=1, min_row=start + 1, max_row=start + len(top)))
+style_chart(bar, f"Map: Top 15 countries by debt in default, {LAST}",
+            "US$ millions", x_title="Country", width=26, height=15)
+bar.legend = None
+for s_ in bar.series:
+    s_.graphicalProperties.solidFill = "E87040"
+ws.add_chart(bar, f"D{start}")
 
-    dark(fig2, 430, legend=dict(orientation='h', y=-0.16, x=0.5, xanchor='center'))
-    fig2.update_yaxes(title_text='% of all sovereigns', range=[0, y_top], row=1, col=1)
-    fig2.update_yaxes(range=[0, y_top], showticklabels=True, row=1, col=2)
-    fig2.update_xaxes(dtick=1, row=1, col=2)
-    for ann in fig2.layout.annotations:
-        ann.font.size = 13
-    show_chart(fig2, "chart2_default_rates.html", "c2",
-               note="Default rates are the number of sovereigns in default on each instrument "
-                    "as a share of all sovereigns. The combined series sums bond and bank-loan "
-                    "defaulters. Panel b zooms into the most recent years on the same scale.")
-
-    # ═══ CHART 3: Total sovereign debt in default by creditor ════════════════
-    st.divider()
-    s3 = span(1976)
-    st.subheader(f"Chart 3: Total sovereign debt in default by creditor, {s3[0]}–{s3[-1]}")
-    fig3 = go.Figure()
-    for c in CREDITOR_ORDER:
-        if c in sel_creditors:
-            fig3.add_trace(go.Bar(x=s3, y=df_creditors.loc[s3, c].fillna(0) / 1e3,
-                                  name=c, marker_color=CREDITOR_COLORS[c]))
-    dark(fig3, 480, barmode='stack', yaxis=dict(title='US$ billions'),
-         legend=dict(orientation='h', y=-0.16, font=dict(size=10)))
-    show_chart(fig3, "chart3_debt_by_creditor.html", "c3",
-               note="IMF is International Monetary Fund. IBRD is International Bank for "
-                    "Reconstruction and Development. IDA is International Development Association. "
-                    "LC is local currency, and FC is foreign currency.")
-
-# ═══ CHARTS 4–6 ══════════════════════════════════════════════════════════════
-with tab_b:
-    # CHART 4: debt in default by debtor
-    s4 = span(1976)
-    st.subheader(f"Chart 4: Sovereign debt in default by debtor, {s4[0]}–{s4[-1]}")
-    fig4 = go.Figure()
-    for d in DEBTOR_ORDER:
-        fig4.add_trace(go.Bar(x=s4, y=df_debtors.loc[s4, d].fillna(0) / 1e3,
-                              name=d, marker_color=DEBTOR_COLORS[d]))
-    dark(fig4, 460, barmode='stack', yaxis=dict(title='US$ billions'),
-         legend=dict(orientation='h', y=-0.16, font=dict(size=10)))
-    show_chart(fig4, "chart4_debt_by_debtor.html", "c4")
-
-    # CHART 5: proportion of debt in default by creditor (100% stacked area)
-    st.divider()
-    s5 = span(1960)
-    st.subheader(f"Chart 5: Proportion of debt in default by creditor, {s5[0]}–{s5[-1]}")
-    shares = df_creditors.loc[s5, CREDITOR_ORDER].fillna(0)
-    denom = shares.sum(axis=1).replace(0, np.nan)
-    shares = shares.div(denom, axis=0) * 100
-    fig5 = go.Figure()
-    for c in CREDITOR_ORDER:
-        if c in sel_creditors:
-            fig5.add_trace(go.Scatter(
-                x=s5, y=shares[c], name=c, mode='lines', stackgroup='one',
-                line=dict(width=0.5, color=CREDITOR_COLORS[c]),
-                fillcolor=CREDITOR_COLORS[c],
-                hovertemplate='%{y:.1f}%<extra>' + c + '</extra>'))
-    dark(fig5, 520, yaxis=dict(title='%', range=[0, 100]),
-         legend=dict(orientation='h', y=-0.16, font=dict(size=10)))
-    show_chart(fig5, "chart5_proportion_by_creditor.html", "c5",
-               note="Shares are each creditor's debt in default as a percentage of total debt "
-                    "in default. Deselect creditors in the sidebar to rescale the composition.")
-
-    # CHART 6: Paris Club and China official loans
-    st.divider()
-    s6 = span(2000)
-    st.subheader(f"Chart 6: Official loans in default for Paris Club and China, {s6[0]}–{s6[-1]}")
-    fig6 = go.Figure()
-    fig6.add_trace(go.Bar(x=s6, y=df_creditors.loc[s6, 'Paris Club'].fillna(0) / 1e3,
-                          name='Paris Club', marker_color='#ff0000'))
-    fig6.add_trace(go.Bar(x=s6, y=df_creditors.loc[s6, 'China'].fillna(0) / 1e3,
-                          name='China', marker_color='#5b9bd5'))
-    dark(fig6, 440, barmode='stack', yaxis=dict(title='US$ billions'),
-         xaxis=dict(dtick=1), legend=dict(orientation='h', y=-0.2))
-    show_chart(fig6, "chart6_paris_club_china.html", "c6")
-
-
-# ═══ CHARTS 7–8 ══════════════════════════════════════════════════════════════
-with tab_c:
-    # CHART 7: shares of global public debt and GDP
-    s7 = span(1980)
-    st.subheader(f"Chart 7: Sovereign debt in default as a share of global public debt "
-                 f"and global GDP, {s7[0]}–{s7[-1]}")
-    fig7 = go.Figure()
-    for col, color, name in [
-        ('% of World Public Debt', '#a52929',
-         'Defaulted global public debt as a share of global public debt'),
-        ('% of World GDP', '#2e9bd6',
-         'Defaulted global public debt as a share of world GDP'),
-        ('% of EM/Other Developing GDP', '#f5a623',
-         'Defaulted emerging-market public debt as a share of emerging-market GDP'),
-    ]:
-        ser = df_rates.loc[s7, col]
-        fig7.add_trace(go.Scatter(x=s7, y=ser, name=name, mode='lines',
-                                  line=dict(color=color, width=2.5)))
-    dark(fig7, 480, yaxis=dict(title='%'),
-         legend=dict(orientation='h', y=-0.22, font=dict(size=10)))
-    show_chart(fig7, "chart7_share_of_debt_and_gdp.html", "c7",
-               note="GDP is gross domestic product. Nominal GDP is used.")
-
-    # CHART 8: number of sovereign defaults by instrument
-    st.divider()
-    s8 = span(1976)
-    st.subheader(f"Chart 8: Number of sovereign defaults, {s8[0]}–{s8[-1]}")
-    fig8 = go.Figure()
-    for col, color in [('FC bank loans', '#2e75b6'), ('FC bonds', '#c0504d'),
-                       ('LC debt', '#9bbb59')]:
-        fig8.add_trace(go.Scatter(x=s8, y=df_counts.loc[s8, col], name=col, mode='lines',
-                                  line=dict(color=color, width=2.5)))
-    dark(fig8, 460, yaxis=dict(title='Number of sovereigns'),
-         legend=dict(orientation='h', y=-0.18))
-    show_chart(fig8, "chart8_number_of_defaults.html", "c8",
-               note="FC is foreign currency and LC is local currency.")
-
-# ═══ MAP: Global debt in default ═════════════════════════════════════════════
-with tab_map:
-    st.subheader("Figure A-1: Global debt in default")
-
-    MAP_BINS = [0, 100, 1000, 10000, 25000, 50000, np.inf]
-    MAP_LABELS = ['>0 - 100', '100 - 1,000', '1,000 - 10,000',
-                  '10,000 - 25,000', '25,000 - 50,000', '>50,000']
-    MAP_COLORS = {'#N/A or 0': '#d9d9d9', '>0 - 100': '#ffffcc', '100 - 1,000': '#ffff33',
-                  '1,000 - 10,000': '#ff9900', '10,000 - 25,000': '#f4978e',
-                  '25,000 - 50,000': '#ff0000', '>50,000': '#5c1a1a'}
-    MAP_ORDER = ['#N/A or 0'] + MAP_LABELS
-
-    def bin_label(v):
-        if pd.isna(v) or v <= 0:
-            return '#N/A or 0'
-        for lo, hi, lab in zip(MAP_BINS[:-1], MAP_BINS[1:], MAP_LABELS):
-            if lo < v <= hi:
-                return lab
-        return '>50,000'
-
-    opts = span() or years
-    map_year = st.select_slider("Map year", options=opts,
-                                value=LAST_OBS if LAST_OBS in opts else opts[-1],
-                                key="map_year")
-
-    fig_map = go.Figure()
-    counts = {lab: 0 for lab in MAP_ORDER}
-    for lab in MAP_ORDER:
-        locs, txt, cd = [], [], []
-        for name in df_countries.index:
-            code = ISO3_MAP.get(name)
-            if not code:
-                continue
-            v = df_countries.loc[name, map_year]
-            if bin_label(v) == lab:
-                locs.append(code); txt.append(name)
-                cd.append("N/A" if (pd.isna(v) or v <= 0) else f"${v:,.0f}M")
-                counts[lab] += 1
-        fig_map.add_trace(go.Choropleth(
-            locations=locs, z=[0] * len(locs), text=txt, customdata=cd,
-            colorscale=[[0, MAP_COLORS[lab]], [1, MAP_COLORS[lab]]], showscale=False,
-            marker_line_color='#ffffff', marker_line_width=0.4,
-            name=lab, showlegend=True, legendgroup=lab,
-            hovertemplate='<b>%{text}</b><br>' + lab + '<br>%{customdata}<extra></extra>'))
-
-    continents = [('NORTH AMERICA', 46, -100), ('SOUTH AMERICA', -14, -58),
-                  ('EUROPE', 56, -12), ('AFRICA', 11, 18),
-                  ('ASIA', 50, 100), ('AUSTRALIA', -25, 134)]
-    oceans = [('Atlantic<br>Ocean', 6, -34), ('Pacific<br>Ocean', 18, -150),
-              ('Pacific<br>Ocean', -20, -120), ('Indian<br>Ocean', -28, 80)]
-    fig_map.add_trace(go.Scattergeo(
-        lon=[c[2] for c in continents], lat=[c[1] for c in continents],
-        text=[c[0] for c in continents], mode='text', showlegend=False, hoverinfo='skip',
-        textfont=dict(color='#6b6b6b', size=13, family='Arial Black')))
-    fig_map.add_trace(go.Scattergeo(
-        lon=[o[2] for o in oceans], lat=[o[1] for o in oceans],
-        text=[o[0] for o in oceans], mode='text', showlegend=False, hoverinfo='skip',
-        textfont=dict(color='#5b7fb0', size=11, family='Arial')))
-
-    fig_map.update_layout(
-        height=600,
-        title=dict(text=f'Total debt in default by country, {map_year} (US$ millions)',
-                   x=0.01, font=dict(size=14, color='#222')),
-        geo=dict(showframe=False, showcoastlines=True, coastlinecolor='#ffffff',
-                 coastlinewidth=0.4, projection_type='equirectangular',
-                 landcolor='#e6e6e6', showland=True,
-                 showocean=True, oceancolor='#a9c7e8',
-                 showlakes=True, lakecolor='#a9c7e8',
-                 showcountries=True, countrycolor='#ffffff', countrywidth=0.4,
-                 lataxis_range=[-58, 85], bgcolor='rgba(0,0,0,0)'),
-        legend=dict(title='<b>US$ millions</b>', x=0.012, y=0.55,
-                    bgcolor='rgba(255,255,255,0.92)', bordercolor='#bbb', borderwidth=1,
-                    font=dict(size=11, color='#222'), itemsizing='constant'),
-        margin=dict(l=0, r=0, t=40, b=0), paper_bgcolor='white')
-    show_chart(fig_map, f"global_debt_default_map_{map_year}.html", "cmap")
-
-    mapped = sum(1 for c in ISO3_MAP.values() if c)
-    st.caption(f"{mapped} of {len(ISO3_MAP)} countries mapped · "
-               f"{counts['>50,000'] + counts['25,000 - 50,000']} in the top two bands in {map_year}. "
-               "Grey = no data or zero (includes dissolved states).")
-
-# ── Footer ───────────────────────────────────────────────────────────────────
-st.divider()
-st.caption(f"Source: BoC–BoE Sovereign Default Database · Last update: July 2026 · "
-           f"Last observation: {LAST_OBS} · Built with Streamlit + Plotly")
+wb.save(OUT)
+print("saved", OUT)
+print("sheets:", wb.sheetnames)
+print("years:", years[0], "->", years[-1], "| countries:", len(df_countries))
