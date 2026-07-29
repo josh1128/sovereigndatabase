@@ -257,50 +257,120 @@ def figure_with_note(fig, note, on_white=False):
 
 
 def show_chart(fig, filename, key, note=None):
-    """Display a Plotly chart with an optional note and HTML/PNG export."""
-    st.plotly_chart(fig, use_container_width=True,
-                    config={"responsive": True, "displaylogo": False},
-                    key=f"chart_{key}")
-    if note:
-        st.markdown(f"<div class='chart-note'>{note}</div>", unsafe_allow_html=True)
+    """Display a Plotly chart with editable user notes and HTML/PNG export.
 
-    if st.checkbox("Prepare download", key=f"prepare_{key}",
-                   help="Enable this only when you want to export this chart as a file."):
+    Anything entered in the notes box is shown below the chart and baked into
+    the exported figure, so it will also appear when the image is placed into
+    a PDF report.
+    """
+    st.plotly_chart(
+        fig,
+        use_container_width=True,
+        config={"responsive": True, "displaylogo": False},
+        key=f"chart_{key}",
+    )
+
+    # Existing/source note supplied by the code.
+    if note:
+        st.markdown(
+            f"<div class='chart-note'><b>Source note:</b> {note}</div>",
+            unsafe_allow_html=True,
+        )
+
+    # User-entered commentary for this chart.
+    custom_note = st.text_area(
+        "Your notes",
+        value="",
+        key=f"user_note_{key}",
+        placeholder="Type your commentary here. It will appear in the exported chart/PDF.",
+        height=90,
+    ).strip()
+
+    if custom_note:
+        st.markdown(
+            f"<div class='chart-note'><b>Your note:</b> {custom_note}</div>",
+            unsafe_allow_html=True,
+        )
+
+    # Combine the fixed/source note and user note for export.
+    export_notes = []
+    if note:
+        export_notes.append(f"Source note: {note}")
+    if custom_note:
+        export_notes.append(f"Commentary: {custom_note}")
+    combined_note = "\n".join(export_notes)
+
+    if st.checkbox(
+        "Prepare download",
+        key=f"prepare_{key}",
+        help="Enable this only when you want to export this chart as a file.",
+    ):
         col_fmt, col_scale = st.columns([1, 1])
         with col_fmt:
-            fmt = st.radio("Format", ["HTML (interactive)", "PNG (image)"],
-                           key=f"fmt_{key}", horizontal=True)
+            fmt = st.radio(
+                "Format",
+                ["HTML (interactive)", "PNG (image)"],
+                key=f"fmt_{key}",
+                horizontal=True,
+            )
+
         base_name = filename.rsplit(".", 1)[0]
-        on_white = str(fig.layout.paper_bgcolor or '').lower() in ('white', '#fff', '#ffffff')
-        export_fig = figure_with_note(fig, note, on_white=on_white)
-        if note:
-            st.caption("The note below the chart is included in the downloaded file.")
+        on_white = str(fig.layout.paper_bgcolor or "").lower() in (
+            "white", "#fff", "#ffffff"
+        )
+        export_fig = figure_with_note(
+            fig,
+            combined_note,
+            on_white=on_white,
+        )
+
+        if combined_note:
+            st.caption(
+                "The source note and anything entered in 'Your notes' are included "
+                "in the downloaded file."
+            )
+
         if fmt.startswith("HTML"):
-            st.download_button("⬇️ Download interactive HTML",
-                               data=plotly_html_bytes(export_fig.to_json()),
-                               file_name=f"{base_name}.html", mime="text/html",
-                               key=f"download_html_{key}",
-                               help="The downloaded file loads Plotly from the internet when opened.")
+            st.download_button(
+                "⬇️ Download interactive HTML",
+                data=plotly_html_bytes(export_fig.to_json()),
+                file_name=f"{base_name}.html",
+                mime="text/html",
+                key=f"download_html_{key}",
+                help="The downloaded file loads Plotly from the internet when opened.",
+            )
         else:
             with col_scale:
-                scale = st.select_slider("Resolution", options=[1, 2, 3, 4], value=2,
-                                         format_func=lambda s: f"{s}x", key=f"scale_{key}",
-                                         help="Higher values produce a larger, sharper image.")
+                scale = st.select_slider(
+                    "Resolution",
+                    options=[1, 2, 3, 4],
+                    value=2,
+                    format_func=lambda s: f"{s}x",
+                    key=f"scale_{key}",
+                    help="Higher values produce a larger, sharper image.",
+                )
             try:
-                st.download_button(f"⬇️ Download PNG ({scale}x)",
-                                   data=plotly_png_bytes(export_fig.to_json(), scale=scale),
-                                   file_name=f"{base_name}.png", mime="image/png",
-                                   key=f"download_png_{key}",
-                                   help="Static image export of the chart, including its note.")
+                st.download_button(
+                    f"⬇️ Download PNG ({scale}x)",
+                    data=plotly_png_bytes(export_fig.to_json(), scale=scale),
+                    file_name=f"{base_name}.png",
+                    mime="image/png",
+                    key=f"download_png_{key}",
+                    help="Static image export of the chart, including all notes.",
+                )
             except Exception as e:
                 if "topojson" in str(e).lower():
-                    st.error("The map needs to fetch its base geometry (topojson) from "
-                             "cdn.plot.ly to render a PNG, and it couldn't be reached. "
-                             "Use the HTML export and save a PNG from the camera icon instead.")
+                    st.error(
+                        "The map needs to fetch its base geometry (topojson) from "
+                        "cdn.plot.ly to render a PNG, and it couldn't be reached. "
+                        "Use the HTML export and save a PNG from the camera icon instead."
+                    )
                 else:
-                    st.error("PNG export needs the `kaleido` package. Install it with "
-                             "`pip install kaleido==0.2.1`, then restart the app. "
-                             "(HTML export works without it.)")
+                    st.error(
+                        "PNG export needs the `kaleido` package. Install it with "
+                        "`pip install kaleido==0.2.1`, then restart the app. "
+                        "(HTML export works without it.)"
+                    )
                 st.caption(f"Details: {e}")
 
 
