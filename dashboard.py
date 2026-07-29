@@ -256,12 +256,12 @@ def figure_with_note(fig, note, on_white=False):
     return out
 
 
-def show_chart(fig, filename, key, note=None):
-    """Display a Plotly chart with editable user notes and HTML/PNG export.
+def show_chart(fig, filename, key):
+    """Display a Plotly chart with only user-entered notes.
 
-    Anything entered in the notes box is shown below the chart and baked into
-    the exported figure, so it will also appear when the image is placed into
-    a PDF report.
+    The note typed by the user is displayed below the chart and included
+    in exported HTML/PNG output. No hard-coded/source notes are displayed
+    or exported.
     """
     st.plotly_chart(
         fig,
@@ -270,35 +270,19 @@ def show_chart(fig, filename, key, note=None):
         key=f"chart_{key}",
     )
 
-    # Existing/source note supplied by the code.
-    if note:
-        st.markdown(
-            f"<div class='chart-note'><b>Source note:</b> {note}</div>",
-            unsafe_allow_html=True,
-        )
-
-    # User-entered commentary for this chart.
     custom_note = st.text_area(
         "Your notes",
         value="",
         key=f"user_note_{key}",
-        placeholder="Type your commentary here. It will appear in the exported chart/PDF.",
+        placeholder="Type your notes here. They will appear in the exported chart/PDF.",
         height=90,
     ).strip()
 
     if custom_note:
         st.markdown(
-            f"<div class='chart-note'><b>Your note:</b> {custom_note}</div>",
+            f"<div class='chart-note'>{custom_note}</div>",
             unsafe_allow_html=True,
         )
-
-    # Combine the fixed/source note and user note for export.
-    export_notes = []
-    if note:
-        export_notes.append(f"Source note: {note}")
-    if custom_note:
-        export_notes.append(f"Commentary: {custom_note}")
-    combined_note = "\n".join(export_notes)
 
     if st.checkbox(
         "Prepare download",
@@ -306,6 +290,7 @@ def show_chart(fig, filename, key, note=None):
         help="Enable this only when you want to export this chart as a file.",
     ):
         col_fmt, col_scale = st.columns([1, 1])
+
         with col_fmt:
             fmt = st.radio(
                 "Format",
@@ -318,17 +303,16 @@ def show_chart(fig, filename, key, note=None):
         on_white = str(fig.layout.paper_bgcolor or "").lower() in (
             "white", "#fff", "#ffffff"
         )
+
+        # ONLY the user's note is stamped into the export.
         export_fig = figure_with_note(
             fig,
-            combined_note,
+            custom_note,
             on_white=on_white,
         )
 
-        if combined_note:
-            st.caption(
-                "The source note and anything entered in 'Your notes' are included "
-                "in the downloaded file."
-            )
+        if custom_note:
+            st.caption("Your note is included in the downloaded file.")
 
         if fmt.startswith("HTML"):
             st.download_button(
@@ -349,6 +333,7 @@ def show_chart(fig, filename, key, note=None):
                     key=f"scale_{key}",
                     help="Higher values produce a larger, sharper image.",
                 )
+
             try:
                 st.download_button(
                     f"⬇️ Download PNG ({scale}x)",
@@ -356,7 +341,7 @@ def show_chart(fig, filename, key, note=None):
                     file_name=f"{base_name}.png",
                     mime="image/png",
                     key=f"download_png_{key}",
-                    help="Static image export of the chart, including all notes.",
+                    help="Static image export of the chart, including only your note.",
                 )
             except Exception as e:
                 if "topojson" in str(e).lower():
@@ -459,10 +444,7 @@ with tab_a:
                        legend=dict(orientation='v', x=1.02, y=0.5, font=dict(size=11)),
                        margin=dict(l=20, r=20, t=20, b=20),
                        paper_bgcolor='rgba(0,0,0,0)')
-    show_chart(fig1, f"chart1_share_by_creditor_{pie_year}.html", "c1",
-               note="LC is local currency and FC is foreign currency. IADB is Inter-American "
-                    "Development Bank. Other official creditors are bilateral and multilateral "
-                    "creditors not identified separately. Other private creditors are mainly suppliers.")
+    show_chart(fig1, f"chart1_share_by_creditor_{pie_year}.html", "c1")
 
     # ═══ CHART 2: Default rates on FC bonds and bank loans (panels a & b) ════
     st.divider()
@@ -502,10 +484,7 @@ with tab_a:
     fig2.update_xaxes(dtick=1, row=1, col=2)
     for ann in fig2.layout.annotations:
         ann.font.size = 13
-    show_chart(fig2, "chart2_default_rates.html", "c2",
-               note="Default rates are the number of sovereigns in default on each instrument "
-                    "as a share of all sovereigns. The combined series sums bond and bank-loan "
-                    "defaulters. Panel b zooms into the most recent years on the same scale.")
+    show_chart(fig2, "chart2_default_rates.html", "c2")
 
     # ═══ CHART 3: Total sovereign debt in default by creditor ════════════════
     st.divider()
@@ -518,10 +497,7 @@ with tab_a:
                                   name=c, marker_color=CREDITOR_COLORS[c]))
     dark(fig3, 480, barmode='stack', yaxis=dict(title='US$ billions'),
          legend=dict(orientation='h', y=-0.16, font=dict(size=10)))
-    show_chart(fig3, "chart3_debt_by_creditor.html", "c3",
-               note="IMF is International Monetary Fund. IBRD is International Bank for "
-                    "Reconstruction and Development. IDA is International Development Association. "
-                    "LC is local currency, and FC is foreign currency.")
+    show_chart(fig3, "chart3_debt_by_creditor.html", "c3")
 
 # ═══ CHARTS 4–6 ══════════════════════════════════════════════════════════════
 with tab_b:
@@ -551,9 +527,7 @@ with tab_b:
                 hovertemplate='%{y:.1f}%<extra>' + c + '</extra>'))
     dark(fig5, 520, yaxis=dict(title='%', range=[0, 100]),
          legend=dict(orientation='h', y=-0.16, font=dict(size=10)))
-    show_chart(fig5, "chart5_proportion_by_creditor.html", "c5",
-               note="Shares are each creditor's debt in default as a percentage of total debt "
-                    "in default. Deselect creditors in the sidebar to rescale the composition.")
+    show_chart(fig5, "chart5_proportion_by_creditor.html", "c5")
 
     st.divider()
     s6 = span(2000)
@@ -587,8 +561,7 @@ with tab_c:
                                   line=dict(color=color, width=2.5)))
     dark(fig7, 480, yaxis=dict(title='%'),
          legend=dict(orientation='h', y=-0.22, font=dict(size=10)))
-    show_chart(fig7, "chart7_share_of_debt_and_gdp.html", "c7",
-               note="GDP is gross domestic product. Nominal GDP is used.")
+    show_chart(fig7, "chart7_share_of_debt_and_gdp.html", "c7")
 
     st.divider()
     s8 = span(1976)
@@ -600,8 +573,7 @@ with tab_c:
                                   line=dict(color=color, width=2.5)))
     dark(fig8, 460, yaxis=dict(title='Number of sovereigns'),
          legend=dict(orientation='h', y=-0.18))
-    show_chart(fig8, "chart8_number_of_defaults.html", "c8",
-               note="FC is foreign currency and LC is local currency.")
+    show_chart(fig8, "chart8_number_of_defaults.html", "c8")
 
 # ═══ MAP: Global debt in default ═════════════════════════════════════════════
 with tab_map:
