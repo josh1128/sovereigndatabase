@@ -489,14 +489,150 @@ with tab_a:
     # ═══ CHART 3: Total sovereign debt in default by creditor ════════════════
     st.divider()
     s3 = span(1976)
-    st.subheader(f"Chart 3: Total sovereign debt in default by creditor, {s3[0]}–{s3[-1]}")
+
+    # Cleaner stacking order: largest / most important series are placed lower
+    # in the stack so their time trends are easier to follow.
+    CHART3_ORDER = [
+        'FC bonds',
+        'FC bank loans',
+        'Paris Club',
+        'China',
+        'Other official creditors',
+        'LC debt',
+        'Other private creditors',
+        'IMF',
+        'IBRD',
+        'IDA',
+        'IADB',
+    ]
+
+    # More restrained palette. Major creditor groups remain distinct while the
+    # smaller series use quieter tones so they do not compete visually.
+    CHART3_COLORS = {
+        'FC bonds': '#8c6d46',
+        'FC bank loans': '#d98bbd',
+        'Paris Club': '#2e7d32',
+        'China': '#3f7fbf',
+        'Other official creditors': '#e0a100',
+        'LC debt': '#3d87a6',
+        'Other private creditors': '#5fa85f',
+        'IMF': '#8172a8',
+        'IBRD': '#c6b700',
+        'IDA': '#b94b55',
+        'IADB': '#6c9db5',
+    }
+
+    st.subheader(f"Sovereign Debt in Default by Creditor, {s3[0]}–{s3[-1]}")
+    st.caption("US$ billions")
+
     fig3 = go.Figure()
-    for c in CREDITOR_ORDER:
-        if c in sel_creditors:
-            fig3.add_trace(go.Bar(x=s3, y=df_creditors.loc[s3, c].fillna(0) / 1e3,
-                                  name=c, marker_color=CREDITOR_COLORS[c]))
-    dark(fig3, 480, barmode='stack', yaxis=dict(title='US$ billions'),
-         legend=dict(orientation='h', y=-0.16, font=dict(size=10)))
+
+    visible_creditors = [c for c in CHART3_ORDER if c in sel_creditors]
+
+    for c in visible_creditors:
+        fig3.add_trace(
+            go.Bar(
+                x=s3,
+                y=df_creditors.loc[s3, c].fillna(0) / 1e3,
+                name=c,
+                marker_color=CHART3_COLORS[c],
+                hovertemplate="<b>%{x}</b><br>" + c + ": $%{y:,.1f}B<extra></extra>",
+            )
+        )
+
+    # Dynamic peak annotations so the chart remains useful if the selected
+    # year range changes.
+    total_visible = (
+        df_creditors.loc[s3, visible_creditors].fillna(0).sum(axis=1) / 1e3
+        if visible_creditors else pd.Series(index=s3, dtype=float)
+    )
+
+    annotation_candidates = []
+    if not total_visible.empty:
+        early_years = [y for y in total_visible.index if 1988 <= y <= 1995]
+        if early_years:
+            early = total_visible.loc[early_years]
+            annotation_candidates.append(
+                (int(early.idxmax()), float(early.max()), "Early-1990s peak")
+            )
+
+        euro_years = [y for y in total_visible.index if 2010 <= y <= 2014]
+        if euro_years:
+            euro = total_visible.loc[euro_years]
+            annotation_candidates.append(
+                (int(euro.idxmax()), float(euro.max()), "Euro-area crisis period")
+            )
+
+        recent_years = [y for y in total_visible.index if 2020 <= y <= s3[-1]]
+        if recent_years:
+            recent = total_visible.loc[recent_years]
+            annotation_candidates.append(
+                (int(recent.idxmax()), float(recent.max()), "Recent rise")
+            )
+
+    fig3.update_layout(
+        template="plotly_white",
+        height=560,
+        barmode="stack",
+        paper_bgcolor="white",
+        plot_bgcolor="white",
+        margin=dict(l=70, r=35, t=35, b=125),
+        hovermode="x unified",
+        font=dict(color="#222222", size=12),
+        yaxis=dict(
+            title="US$ billions",
+            gridcolor="rgba(0,0,0,0.10)",
+            gridwidth=0.8,
+            zeroline=False,
+            showline=False,
+            tickfont=dict(color="#444444"),
+        ),
+        xaxis=dict(
+            gridcolor="rgba(0,0,0,0)",
+            zeroline=False,
+            showline=False,
+            tickfont=dict(color="#444444"),
+            tickmode="linear",
+            dtick=10,
+        ),
+        legend=dict(
+            orientation="h",
+            yanchor="top",
+            y=-0.16,
+            xanchor="center",
+            x=0.5,
+            font=dict(size=11, color="#333333"),
+            traceorder="normal",
+            itemwidth=55,
+        ),
+    )
+
+    for i, (yr, val, label) in enumerate(annotation_candidates[:3]):
+        fig3.add_annotation(
+            x=yr,
+            y=val,
+            text=label,
+            showarrow=True,
+            arrowhead=2,
+            arrowsize=0.8,
+            arrowwidth=1,
+            arrowcolor="#666666",
+            ax=0,
+            ay=-35 - (i % 2) * 10,
+            bgcolor="rgba(255,255,255,0.88)",
+            bordercolor="rgba(0,0,0,0.12)",
+            borderwidth=1,
+            font=dict(size=10.5, color="#333333"),
+        )
+
+    # If categories are filtered out, make that explicit so the remaining stack
+    # is not mistaken for the full total.
+    if len(visible_creditors) < len(CHART3_ORDER):
+        st.caption(
+            "Filtered view: one or more creditor categories are hidden. "
+            "The stacked bars therefore represent only the selected creditors."
+        )
+
     show_chart(fig3, "chart3_debt_by_creditor.html", "c3")
 
 # ═══ CHARTS 4–6 ══════════════════════════════════════════════════════════════
