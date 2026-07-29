@@ -10,172 +10,48 @@ st.set_page_config(page_title="Sovereign Default Database", layout="wide", page_
 # Country name -> ISO alpha-3 code, for the choropleth world map.
 # Dissolved states with no modern geometry map to None and render as "no data".
 ISO3_MAP = {
-    'Afghanistan': 'AFG',
-    'Albania': 'ALB',
-    'Algeria': 'DZA',
-    'Angola': 'AGO',
-    'Anguila': 'AIA',
-    'Antigua and Barbuda': 'ATG',
-    'Argentina': 'ARG',
-    'Armenia': 'ARM',
-    'Aruba': 'ABW',
-    'Azerbaijan': 'AZE',
-    'Bahamas': 'BHS',
-    'Bangladesh': 'BGD',
-    'Barbados': 'BRB',
-    'Belarus': 'BLR',
-    'Belize': 'BLZ',
-    'Benin': 'BEN',
-    'Bhutan': 'BTN',
-    'Bolivia': 'BOL',
-    'Bosnia & Herzegovina': 'BIH',
-    'Botswana': 'BWA',
-    'Brazil': 'BRA',
-    'Bulgaria': 'BGR',
-    'Burkina Faso': 'BFA',
-    'Burundi': 'BDI',
-    'Cabo Verde': 'CPV',
-    'Cambodia': 'KHM',
-    'Cameroon': 'CMR',
-    'Central African Republic': 'CAF',
-    'Chad': 'TCD',
-    'Chile': 'CHL',
-    'China': 'CHN',
-    'Colombia': 'COL',
-    'Comoros': 'COM',
-    'Rep. Of Congo (Brazzaville)': 'COG',
-    'Dem. Rep. of Congo (Kinshasa)': 'COD',
-    'Cook Islands': 'COK',
-    'Costa Rica': 'CRI',
-    'Côte d’Ivoire': 'CIV',
-    'Croatia': 'HRV',
-    'Cuba': 'CUB',
-    'Curaçao': 'CUW',
-    'Cyprus': 'CYP',
-    'Czechoslovakia': None,
-    'Djibouti': 'DJI',
-    'Dominica': 'DMA',
-    'Dominican Republic': 'DOM',
-    'Ecuador': 'ECU',
-    'Egypt': 'EGY',
-    'El Salvador': 'SLV',
-    'Equatorial Guinea': 'GNQ',
-    'Eritrea': 'ERI',
-    'Ethiopia': 'ETH',
-    'Fiji': 'FJI',
-    'Gabon': 'GAB',
-    'The Gambia': 'GMB',
-    'Georgia': 'GEO',
-    'Ghana': 'GHA',
-    'Greece': 'GRC',
-    'Grenada': 'GRD',
-    'Guatemala': 'GTM',
-    'Guinea': 'GIN',
-    'Guinea-Bissau': 'GNB',
-    'Guyana': 'GUY',
-    'Haiti': 'HTI',
-    'Honduras': 'HND',
-    'Hungary': 'HUN',
-    'India': 'IND',
-    'Indonesia': 'IDN',
-    'Iran': 'IRN',
-    'Iraq': 'IRQ',
-    'Ireland': 'IRL',
-    'Jamaica': 'JAM',
-    'Jordan': 'JOR',
-    'Kazakhstan': 'KAZ',
-    'Kenya': 'KEN',
-    "Korea, Democratic People's Republic of (North)": 'PRK',
-    'Kosovo': 'XKX',
-    'Kyrgyz Republic': 'KGZ',
-    'Laos': 'LAO',
-    'Latvia': 'LVA',
-    'Lebanon': 'LBN',
-    'Lesotho': 'LSO',
-    'Liberia': 'LBR',
-    'Libya': 'LBY',
-    'Lithuania': 'LTU',
-    'North Macedonia': 'MKD',
-    'Madagascar': 'MDG',
-    'Malawi': 'MWI',
-    'Malaysia': 'MYS',
-    'Maldives': 'MDV',
-    'Mali': 'MLI',
-    'Marshall Islands': 'MHL',
-    'Mauritania': 'MRT',
-    'Mauritius': 'MUS',
-    'Mexico': 'MEX',
-    'Micronesia': 'FSM',
-    'Moldova': 'MDA',
-    'Mongolia': 'MNG',
-    'Montenegro': 'MNE',
-    'Morocco': 'MAR',
-    'Mozambique': 'MOZ',
-    'Myanmar': 'MMR',
-    'Namibia': 'NAM',
-    'Nauru': 'NRU',
-    'Nepal': 'NPL',
-    'Netherlands Antilles': None,
-    'Nicaragua': 'NIC',
-    'Niger': 'NER',
-    'Nigeria': 'NGA',
-    'Pakistan': 'PAK',
-    'Palau': 'PLW',
-    'Panama': 'PAN',
-    'Papua New Guinea': 'PNG',
-    'Paraguay': 'PRY',
-    'Peru': 'PER',
-    'Philippines': 'PHL',
-    'Poland': 'POL',
-    'Portugal': 'PRT',
-    'Puerto Rico': 'PRI',
-    'Romania': 'ROU',
-    'Rwanda': 'RWA',
-    'St. Kitts & Nevis': 'KNA',
-    'St. Lucia': 'LCA',
-    'St. Vincent and the Grenadines': 'VCT',
-    'Samoa': 'WSM',
-    'São Tomé and Príncipe': 'STP',
-    'Senegal': 'SEN',
-    'Serbia': 'SRB',
-    'Seychelles': 'SYC',
-    'Sierra Leone': 'SLE',
-    'Sint Maarten': 'SXM',
-    'Slovak Republic': 'SVK',
-    'Slovenia': 'SVN',
-    'Solomon Islands': 'SLB',
-    'Somalia': 'SOM',
-    'South Africa': 'ZAF',
-    'South Sudan': 'SSD',
-    'Sri Lanka': 'LKA',
-    'Sudan': 'SDN',
-    'Suriname': 'SUR',
-    'eSwatini (Swaziland)': 'SWZ',
-    'Syria': 'SYR',
-    'Tajikistan': 'TJK',
-    'Tanzania': 'TZA',
-    'Thailand': 'THA',
-    'Togo': 'TGO',
-    'Tonga': 'TON',
-    'Trinidad & Tobago': 'TTO',
-    'Tunisia': 'TUN',
-    'Turkey': 'TUR',
-    'Turkmenistan': 'TKM',
-    'Tuvalu': 'TUV',
-    'Uganda': 'UGA',
-    'Ukraine': 'UKR',
-    'United Kingdom': 'GBR',
-    'Uruguay': 'URY',
-    'USSR/Russian Federation': 'RUS',
-    'Uzbekistan': 'UZB',
-    'Vanuatu': 'VUT',
-    'Venezuela': 'VEN',
-    'Vietnam': 'VNM',
-    'West Bank & Gaza': 'PSE',
-    'Yemen': 'YEM',
-    'Yugoslavia': None,
-    'Zambia': 'ZMB',
-    'Zimbabwe': 'ZWE',
+    'Afghanistan': 'AFG', 'Albania': 'ALB', 'Algeria': 'DZA', 'Angola': 'AGO',
+    'Anguila': 'AIA', 'Antigua and Barbuda': 'ATG', 'Argentina': 'ARG', 'Armenia': 'ARM',
+    'Aruba': 'ABW', 'Azerbaijan': 'AZE', 'Bahamas': 'BHS', 'Bangladesh': 'BGD',
+    'Barbados': 'BRB', 'Belarus': 'BLR', 'Belize': 'BLZ', 'Benin': 'BEN', 'Bhutan': 'BTN',
+    'Bolivia': 'BOL', 'Bosnia & Herzegovina': 'BIH', 'Botswana': 'BWA', 'Brazil': 'BRA',
+    'Bulgaria': 'BGR', 'Burkina Faso': 'BFA', 'Burundi': 'BDI', 'Cabo Verde': 'CPV',
+    'Cambodia': 'KHM', 'Cameroon': 'CMR', 'Central African Republic': 'CAF', 'Chad': 'TCD',
+    'Chile': 'CHL', 'China': 'CHN', 'Colombia': 'COL', 'Comoros': 'COM',
+    'Rep. Of Congo (Brazzaville)': 'COG', 'Dem. Rep. of Congo (Kinshasa)': 'COD',
+    'Cook Islands': 'COK', 'Costa Rica': 'CRI', 'Côte d’Ivoire': 'CIV', 'Croatia': 'HRV',
+    'Cuba': 'CUB', 'Curaçao': 'CUW', 'Cyprus': 'CYP', 'Czechoslovakia': None,
+    'Djibouti': 'DJI', 'Dominica': 'DMA', 'Dominican Republic': 'DOM', 'Ecuador': 'ECU',
+    'Egypt': 'EGY', 'El Salvador': 'SLV', 'Equatorial Guinea': 'GNQ', 'Eritrea': 'ERI',
+    'Ethiopia': 'ETH', 'Fiji': 'FJI', 'Gabon': 'GAB', 'The Gambia': 'GMB', 'Georgia': 'GEO',
+    'Ghana': 'GHA', 'Greece': 'GRC', 'Grenada': 'GRD', 'Guatemala': 'GTM', 'Guinea': 'GIN',
+    'Guinea-Bissau': 'GNB', 'Guyana': 'GUY', 'Haiti': 'HTI', 'Honduras': 'HND',
+    'Hungary': 'HUN', 'India': 'IND', 'Indonesia': 'IDN', 'Iran': 'IRN', 'Iraq': 'IRQ',
+    'Ireland': 'IRL', 'Jamaica': 'JAM', 'Jordan': 'JOR', 'Kazakhstan': 'KAZ', 'Kenya': 'KEN',
+    "Korea, Democratic People's Republic of (North)": 'PRK', 'Kosovo': 'XKX',
+    'Kyrgyz Republic': 'KGZ', 'Laos': 'LAO', 'Latvia': 'LVA', 'Lebanon': 'LBN',
+    'Lesotho': 'LSO', 'Liberia': 'LBR', 'Libya': 'LBY', 'Lithuania': 'LTU',
+    'North Macedonia': 'MKD', 'Madagascar': 'MDG', 'Malawi': 'MWI', 'Malaysia': 'MYS',
+    'Maldives': 'MDV', 'Mali': 'MLI', 'Marshall Islands': 'MHL', 'Mauritania': 'MRT',
+    'Mauritius': 'MUS', 'Mexico': 'MEX', 'Micronesia': 'FSM', 'Moldova': 'MDA',
+    'Mongolia': 'MNG', 'Montenegro': 'MNE', 'Morocco': 'MAR', 'Mozambique': 'MOZ',
+    'Myanmar': 'MMR', 'Namibia': 'NAM', 'Nauru': 'NRU', 'Nepal': 'NPL',
+    'Netherlands Antilles': None, 'Nicaragua': 'NIC', 'Niger': 'NER', 'Nigeria': 'NGA',
+    'Pakistan': 'PAK', 'Palau': 'PLW', 'Panama': 'PAN', 'Papua New Guinea': 'PNG',
+    'Paraguay': 'PRY', 'Peru': 'PER', 'Philippines': 'PHL', 'Poland': 'POL',
+    'Portugal': 'PRT', 'Puerto Rico': 'PRI', 'Romania': 'ROU', 'Rwanda': 'RWA',
+    'St. Kitts & Nevis': 'KNA', 'St. Lucia': 'LCA', 'St. Vincent and the Grenadines': 'VCT',
+    'Samoa': 'WSM', 'São Tomé and Príncipe': 'STP', 'Senegal': 'SEN', 'Serbia': 'SRB',
+    'Seychelles': 'SYC', 'Sierra Leone': 'SLE', 'Sint Maarten': 'SXM', 'Slovak Republic': 'SVK',
+    'Slovenia': 'SVN', 'Solomon Islands': 'SLB', 'Somalia': 'SOM', 'South Africa': 'ZAF',
+    'South Sudan': 'SSD', 'Sri Lanka': 'LKA', 'Sudan': 'SDN', 'Suriname': 'SUR',
+    'eSwatini (Swaziland)': 'SWZ', 'Syria': 'SYR', 'Tajikistan': 'TJK', 'Tanzania': 'TZA',
+    'Thailand': 'THA', 'Togo': 'TGO', 'Tonga': 'TON', 'Trinidad & Tobago': 'TTO',
+    'Tunisia': 'TUN', 'Turkey': 'TUR', 'Turkmenistan': 'TKM', 'Tuvalu': 'TUV', 'Uganda': 'UGA',
+    'Ukraine': 'UKR', 'United Kingdom': 'GBR', 'Uruguay': 'URY',
+    'USSR/Russian Federation': 'RUS', 'Uzbekistan': 'UZB', 'Vanuatu': 'VUT',
+    'Venezuela': 'VEN', 'Vietnam': 'VNM', 'West Bank & Gaza': 'PSE', 'Yemen': 'YEM',
+    'Yugoslavia': None, 'Zambia': 'ZMB', 'Zimbabwe': 'ZWE',
 }
 
 # ── Palettes (matched to the published charts) ───────────────────────────────
@@ -216,10 +92,6 @@ def load_data():
     base_dir = os.path.dirname(os.path.abspath(__file__))
     df_raw = pd.read_excel(os.path.join(base_dir, "data.xlsx"), header=None)
 
-    # col 0 = country row number, col 1 = label / country name, col 2 = data
-    # score, first data column = col 3. Years run until a blank separator column;
-    # a second year block follows it and must be ignored. Projection years carry
-    # a trailing 'p' (e.g. '2025p').
     DATA_START = 3
     years, n_cols = [], 0
     for c in range(DATA_START, df_raw.shape[1]):
@@ -245,21 +117,18 @@ def load_data():
                 out.append(np.nan)
         return pd.Series(out, index=years)
 
-    # Debt in default by creditor (US$ mil) — rows 6–17
     creditor_rows = {'Total': 6, 'IMF': 7, 'IBRD': 8, 'IDA': 9, 'IADB': 10,
                      'Paris Club': 11, 'China': 12, 'Other official creditors': 13,
                      'FC bank loans': 14, 'FC bonds': 15,
                      'Other private creditors': 16, 'LC debt': 17}
     df_creditors = pd.DataFrame({k: get_row(v) for k, v in creditor_rows.items()})
 
-    # Debt in default by debtor (US$ mil) — rows 22–26
     debtor_rows = {'Total': 22, 'Advanced economies': 23,
                    'Emerging-market and frontier economies': 24,
                    'Heavily indebted poor countries': 25,
                    'Other developing economies': 26}
     df_debtors = pd.DataFrame({k: get_row(v) for k, v in debtor_rows.items()})
 
-    # Default rates (%) — rows 31–36
     df_rates = pd.DataFrame({
         '% of all Sovereigns': get_row(31),
         '% of World Public Debt': get_row(34),
@@ -267,7 +136,6 @@ def load_data():
         '% of World GDP': get_row(36),
     })
 
-    # Counts — row 38 total sovereigns, row 40 total in default, rows 41–51 by creditor
     count_rows = {'Total in default': 40, 'IMF': 41, 'IBRD': 42, 'IDA': 43, 'IADB': 44,
                   'Paris Club': 45, 'China': 46, 'Other official creditors': 47,
                   'FC bank loans': 48, 'FC bonds': 49,
@@ -275,7 +143,6 @@ def load_data():
     df_counts = pd.DataFrame({k: get_row(v) for k, v in count_rows.items()})
     total_sovereigns = get_row(38)
 
-    # Country-level debt in default (rows 66 onward)
     countries = []
     for i in range(66, len(df_raw)):
         idx_val = df_raw.iloc[i, 0]
@@ -316,33 +183,75 @@ def plotly_html_bytes(fig_json):
 
 
 def figure_with_note(fig, note, on_white=False):
-    """Return a copy of `fig` with the note stamped underneath, for file export.
+    """Return an export-ready copy of `fig`: restyled for a white page, with the
+    note (if any) stamped in a legible band at the very bottom.
 
-    The on-screen note is rendered by Streamlit and would otherwise be lost in
-    downloads, so it is baked into the figure itself and the bottom margin is
-    grown to make room for it.
+    The on-screen charts are dark-themed with a transparent background, so their
+    light text disappears when a PNG is pasted onto a white surface such as
+    Microsoft Word. For downloads we therefore force a white background and dark
+    text/gridlines so everything stays visible, then bake in the note.
     """
     import copy
     import textwrap
 
     out = copy.deepcopy(fig)
+
+    is_geo = bool(out.data) and out.data[0].type in ("choropleth", "scattergeo")
+    INK = "#222222"
+    GRID = "#e6e6e6"
+    LINE = "#c8c8c8"
+
+    # 1) Make the figure readable on a white page.
+    if not is_geo:
+        out.update_layout(template="plotly_white")
+    out.update_layout(
+        paper_bgcolor="white", plot_bgcolor="white",
+        font=dict(color=INK),
+        legend=dict(font=dict(color=INK)),
+        title=dict(font=dict(color=INK)),
+    )
+    if not is_geo:
+        out.update_xaxes(gridcolor=GRID, zerolinecolor=GRID, linecolor=LINE,
+                         tickcolor=LINE, tickfont=dict(color=INK),
+                         title=dict(font=dict(color=INK)))
+        out.update_yaxes(gridcolor=GRID, zerolinecolor=GRID, linecolor=LINE,
+                         tickcolor=LINE, tickfont=dict(color=INK),
+                         title=dict(font=dict(color=INK)))
+    # Pie labels sitting outside the slices follow the layout font; make sure any
+    # that were light are now dark. Inside labels keep Plotly's auto contrast.
+    if out.data and out.data[0].type == "pie":
+        out.update_traces(outsidetextfont=dict(color=INK), selector=dict(type="pie"))
+    # Existing annotations (e.g. subplot panel titles) that had no explicit
+    # colour would inherit the old light template — pin them dark.
+    for ann in out.layout.annotations:
+        if ann.font is None or ann.font.color is None:
+            ann.font.color = INK
+
+    # 2) Stamp the note in a band at the very bottom.
+    note = (note or "").strip()
     if not note:
         return out
 
-    lines = textwrap.wrap(note, width=115) or [note]
-    # Sit below the legend if there is one, otherwise just below the axis.
-    legend_y = None
-    if out.layout.legend is not None and out.layout.legend.y is not None:
-        legend_y = out.layout.legend.y
-    note_y = (legend_y if legend_y is not None else -0.12) - 0.10
+    lines = textwrap.wrap(note, width=120) or [note]
+    line_px = 17
+
+    leg = out.layout.legend
+    bottom_legend = bool(leg is not None and leg.orientation == 'h'
+                         and leg.y is not None and leg.y <= 0.05)
+    legend_px = 48 if bottom_legend else 0
+    gap = 22
 
     base_b = out.layout.margin.b if out.layout.margin.b is not None else 50
-    out.update_layout(margin=dict(b=base_b + 34 + 18 * len(lines)))
+    out.update_layout(
+        margin=dict(b=base_b + legend_px + gap + line_px * len(lines) + 14))
+
     out.add_annotation(
         text="<br>".join(lines),
-        xref='paper', yref='paper', x=0, y=note_y,
-        xanchor='left', yanchor='top', showarrow=False, align='left',
-        font=dict(size=11, color='#555' if on_white else '#9aa3b8'),
+        xref='paper', yref='paper', x=0.0, y=0.0,
+        xanchor='left', yanchor='top',
+        yshift=-(base_b + legend_px + gap),
+        showarrow=False, align='left',
+        font=dict(family='Arial', size=12.5, color='#2b2b2b'),
     )
     return out
 
@@ -362,7 +271,6 @@ def show_chart(fig, filename, key, note=None):
             fmt = st.radio("Format", ["HTML (interactive)", "PNG (image)"],
                            key=f"fmt_{key}", horizontal=True)
         base_name = filename.rsplit(".", 1)[0]
-        # The map renders on a white background; everything else is dark themed.
         on_white = str(fig.layout.paper_bgcolor or '').lower() in ('white', '#fff', '#ffffff')
         export_fig = figure_with_note(fig, note, on_white=on_white)
         if note:
@@ -428,7 +336,6 @@ y0, y1 = year_range
 
 
 def span(lo=None, hi=None):
-    """Years inside the sidebar range, optionally clamped to a chart's own period."""
     a = max(y0, lo) if lo else y0
     b = min(y1, hi) if hi else y1
     return [y for y in years if a <= y <= b]
@@ -497,7 +404,6 @@ with tab_a:
 
     s = span()
     s2 = span(2020)
-    # Shared y-axis range so the two panels are directly comparable.
     y_max = float(np.nanmax([rate_both.loc[s].max(), rate_both.loc[s2].max()])) if s and s2 else 10
     y_top = max(5, np.ceil(y_max / 5) * 5)
 
@@ -549,7 +455,6 @@ with tab_a:
 
 # ═══ CHARTS 4–6 ══════════════════════════════════════════════════════════════
 with tab_b:
-    # CHART 4: debt in default by debtor
     s4 = span(1976)
     st.subheader(f"Chart 4: Sovereign debt in default by debtor, {s4[0]}–{s4[-1]}")
     fig4 = go.Figure()
@@ -560,7 +465,6 @@ with tab_b:
          legend=dict(orientation='h', y=-0.16, font=dict(size=10)))
     show_chart(fig4, "chart4_debt_by_debtor.html", "c4")
 
-    # CHART 5: proportion of debt in default by creditor (100% stacked area)
     st.divider()
     s5 = span(1960)
     st.subheader(f"Chart 5: Proportion of debt in default by creditor, {s5[0]}–{s5[-1]}")
@@ -581,7 +485,6 @@ with tab_b:
                note="Shares are each creditor's debt in default as a percentage of total debt "
                     "in default. Deselect creditors in the sidebar to rescale the composition.")
 
-    # CHART 6: Paris Club and China official loans
     st.divider()
     s6 = span(2000)
     st.subheader(f"Chart 6: Official loans in default for Paris Club and China, {s6[0]}–{s6[-1]}")
@@ -597,7 +500,6 @@ with tab_b:
 
 # ═══ CHARTS 7–8 ══════════════════════════════════════════════════════════════
 with tab_c:
-    # CHART 7: shares of global public debt and GDP
     s7 = span(1980)
     st.subheader(f"Chart 7: Sovereign debt in default as a share of global public debt "
                  f"and global GDP, {s7[0]}–{s7[-1]}")
@@ -618,7 +520,6 @@ with tab_c:
     show_chart(fig7, "chart7_share_of_debt_and_gdp.html", "c7",
                note="GDP is gross domestic product. Nominal GDP is used.")
 
-    # CHART 8: number of sovereign defaults by instrument
     st.divider()
     s8 = span(1976)
     st.subheader(f"Chart 8: Number of sovereign defaults, {s8[0]}–{s8[-1]}")
