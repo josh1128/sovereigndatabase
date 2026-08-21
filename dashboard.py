@@ -1037,9 +1037,9 @@ with tab_map:
         )
 
     st.caption(
-        "All mapped countries are labelled. Debt-value callouts are shown only for "
-        "larger defaults to keep the map readable; exact values and ranking for every "
-        "country are available in the table below."
+        "Country polygons are always shown. Labels adapt to the view: the world map "
+        "uses selective labels to avoid crowding, while regional extracts show all "
+        "country names. Exact values and ranking are available in the table below."
     )
 
     # Build one reusable country-level frame per selected year. This is faster
@@ -1111,53 +1111,55 @@ with tab_map:
             )
         ))
 
-    # ── Country labels ─────────────────────────────────────────────────────
-    # Always draw every mapped country in the selected view.  The previous world
-    # map only labelled the 12 largest defaults, which made many coloured
-    # countries look as if they were missing.  Values are kept separate from the
-    # country-name layer so large callouts do not hide smaller countries.
+    # ── Adaptive country labels ──────────────────────────────────────────────
+    # A world map cannot legibly carry every country name at once. Keep every
+    # country polygon visible, but use a clean default labelling rule:
+    #   • World: label defaulting countries >= US$1bn; append values >= US$10bn.
+    #   • Regional extracts: label every country in the region; append values
+    #     for defaults >= US$10bn.
+    # This avoids the previous duplicate name + value text layers.
     if not view_df.empty:
-        # All country names.  Use a smaller font on the world map and a larger
-        # one on regional extracts, where there is more room.
-        label_size = 7 if region == 'World' else 9
-        fig_map.add_trace(go.Scattergeo(
-            lon=view_df['lon'],
-            lat=view_df['lat'],
-            text=view_df['label'],
-            mode='text',
-            showlegend=False,
-            hoverinfo='skip',
-            textfont=dict(
-                color='#444444',
-                size=label_size,
-                family='Arial'
-            )
-        ))
+        if region == 'World':
+            label_df = view_df[view_df['value'].fillna(0) >= 1000].copy()
+            label_size = 7.5
+            major_threshold = 10000
+        else:
+            label_df = view_df.copy()
+            label_size = 9
+            major_threshold = 10000
 
-        # Debt-value callouts are restricted to large defaults.  This keeps the
-        # map readable while still showing every country's name.  Regional maps
-        # use a lower threshold because there is more space.
-        value_threshold = 10000 if region == 'World' else 1000
-        value_df = view_df[view_df['value'].fillna(0) >= value_threshold].copy()
+        if not label_df.empty:
+            def make_map_label(row):
+                name = row['label']
+                value = row['value']
+                if pd.notna(value) and value >= major_threshold:
+                    return f"<b>{name}</b><br>${value/1e3:,.1f}B"
+                return name
 
-        if not value_df.empty:
+            label_df['map_text'] = label_df.apply(make_map_label, axis=1)
+
             fig_map.add_trace(go.Scattergeo(
-                lon=value_df['lon'],
-                lat=value_df['lat'],
-                text=[
-                    f"${r.value/1e3:,.1f}B"
-                    for r in value_df.itertuples()
-                ],
+                lon=label_df['lon'],
+                lat=label_df['lat'],
+                text=label_df['map_text'],
                 mode='text',
                 showlegend=False,
                 hoverinfo='skip',
-                textposition='bottom center',
                 textfont=dict(
-                    color='#202020',
-                    size=8 if region == 'World' else 9,
-                    family='Arial Black'
+                    color='#333333',
+                    size=label_size,
+                    family='Arial'
                 )
             ))
+
+    # A short explanation avoids implying that unlabelled world-map countries
+    # are missing from the data. Exact values/order remain in the table below.
+    if region == 'World':
+        st.caption(
+            "World view uses selective labels for readability: country names are shown "
+            "for defaults of US$1bn or more, with values added at US$10bn or more. "
+            "All mapped countries remain visible and are listed in the table below."
+        )
 
     geo_kw = dict(
         showframe=False,
