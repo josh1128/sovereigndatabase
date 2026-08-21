@@ -715,21 +715,30 @@ with tab_c:
 with tab_map:
     st.subheader("Figure A-1: Global debt in default")
 
-    MAP_BINS = [0, 100, 1000, 10000, 25000, 50000, np.inf]
+    MAP_BINS = [0, 100, 1000, 10000, 25000, 50000, 100000, np.inf]
     MAP_LABELS = ['>0 - 100', '100 - 1,000', '1,000 - 10,000',
-                  '10,000 - 25,000', '25,000 - 50,000', '>50,000']
-    MAP_COLORS = {'#N/A or 0': '#d9d9d9', '>0 - 100': '#ffffcc', '100 - 1,000': '#ffff33',
-                  '1,000 - 10,000': '#ff9900', '10,000 - 25,000': '#f4978e',
-                  '25,000 - 50,000': '#ff0000', '>50,000': '#5c1a1a'}
-    MAP_ORDER = ['#N/A or 0'] + MAP_LABELS
+                  '10,000 - 25,000', '25,000 - 50,000', '50,000 - 100,000', '>100,000']
+    # Sequential ColorBrewer YlOrRd: perceived darkness increases monotonically,
+    # so bands can be ranked by intensity alone. "No data" and a genuine "Zero"
+    # get distinct neutral treatments rather than one shared grey.
+    NODATA_LABEL = 'No data'
+    ZERO_LABEL = 'Zero (no default)'
+    MAP_COLORS = {NODATA_LABEL: '#d9d9d9', ZERO_LABEL: '#f4f4f4',
+                  '>0 - 100': '#ffffb2', '100 - 1,000': '#fed976',
+                  '1,000 - 10,000': '#feb24c', '10,000 - 25,000': '#fd8d3c',
+                  '25,000 - 50,000': '#fc4e2a', '50,000 - 100,000': '#e31a1c',
+                  '>100,000': '#b10026'}
+    MAP_ORDER = [NODATA_LABEL, ZERO_LABEL] + MAP_LABELS
 
     def bin_label(v):
-        if pd.isna(v) or v <= 0:
-            return '#N/A or 0'
+        if pd.isna(v):
+            return NODATA_LABEL
+        if v <= 0:
+            return ZERO_LABEL
         for lo, hi, lab in zip(MAP_BINS[:-1], MAP_BINS[1:], MAP_LABELS):
             if lo < v <= hi:
                 return lab
-        return '>50,000'
+        return MAP_LABELS[-1]
 
     opts = span() or years
     map_year = st.select_slider("Map year", options=opts,
@@ -747,7 +756,12 @@ with tab_map:
             v = df_countries.loc[name, map_year]
             if bin_label(v) == lab:
                 locs.append(code); txt.append(name)
-                cd.append("N/A" if (pd.isna(v) or v <= 0) else f"${v:,.0f}M")
+                if pd.isna(v):
+                    cd.append("No data")
+                elif v <= 0:
+                    cd.append("Zero (no default)")
+                else:
+                    cd.append(f"${v:,.0f}M")
                 counts[lab] += 1
         fig_map.add_trace(go.Choropleth(
             locations=locs, z=[0] * len(locs), text=txt, customdata=cd,
@@ -775,23 +789,32 @@ with tab_map:
     CALLOUT_THRESHOLD = 10_000   # US$ millions
     MAX_CALLOUTS = 8
 
-    # Approximate country-centre coordinates used only for text callouts.
+    # Country-centre coordinates (the leader-line anchor on the polygon) plus a
+    # hand-tuned label position sitting in open water / empty space, so labels
+    # no longer overlap their own country. Each entry: (centre_lat, centre_lon,
+    # label_lat, label_lon).
     CALLOUT_COORDS = {
-        'Argentina': (-38.4, -63.6),
-        'Brazil': (-14.2, -51.9),
-        'China': (35.9, 104.2),
-        'Greece': (39.1, 21.8),
-        'India': (20.6, 78.9),
-        'Indonesia': (-0.8, 113.9),
-        'Mexico': (23.6, -102.5),
-        'Pakistan': (30.4, 69.3),
-        'Russia': (61.5, 105.3),
-        'USSR/Russian Federation': (61.5, 105.3),
-        'South Africa': (-30.6, 22.9),
-        'Turkey': (39.0, 35.2),
-        'Ukraine': (48.4, 31.2),
-        'Venezuela': (6.4, -66.6),
+        'Argentina':               (-38.4, -63.6, -40.0, -48.0),
+        'Brazil':                  (-14.2, -51.9,  -6.0, -34.0),
+        'China':                   ( 35.9, 104.2,  29.0, 121.0),
+        'Greece':                  ( 39.1,  21.8,  33.0,  19.0),
+        'India':                   ( 20.6,  78.9,  11.0,  70.0),
+        'Indonesia':               ( -0.8, 113.9, -11.0, 118.0),
+        'Mexico':                  ( 23.6,-102.5,  27.0,-118.0),
+        'Pakistan':                ( 30.4,  69.3,  23.0,  61.0),
+        'Russia':                  ( 61.5, 105.3,  71.0, 110.0),
+        'USSR/Russian Federation': ( 61.5, 105.3,  71.0, 110.0),
+        'South Africa':            (-30.6,  22.9, -39.0,  18.0),
+        'Turkey':                  ( 39.0,  35.2,  34.0,  42.0),
+        'Ukraine':                 ( 48.4,  31.2,  42.0,  20.0),
+        'Venezuela':               (  6.4, -66.6,  15.0, -58.0),
     }
+
+    def callout_display_name(name, year):
+        # Avoid the anachronism of labelling the modern state "USSR".
+        if name == 'USSR/Russian Federation':
+            return 'Russia' if year >= 1992 else 'USSR'
+        return name
 
     callout_rows = []
     for name in df_countries.index:
@@ -801,16 +824,34 @@ with tab_map:
             and v > CALLOUT_THRESHOLD
             and name in CALLOUT_COORDS
         ):
-            lat, lon = CALLOUT_COORDS[name]
-            callout_rows.append((name, float(v), lat, lon))
+            clat, clon, llat, llon = CALLOUT_COORDS[name]
+            callout_rows.append((callout_display_name(name, map_year),
+                                 float(v), clat, clon, llat, llon))
 
     # Largest countries first; cap the number of visible labels.
     callout_rows = sorted(callout_rows, key=lambda x: x[1], reverse=True)[:MAX_CALLOUTS]
 
     if callout_rows:
+        # Leader lines from each country centre out to its label anchor.
+        leader_lon, leader_lat = [], []
+        for r in callout_rows:
+            leader_lon += [r[3], r[5], None]
+            leader_lat += [r[2], r[4], None]
         fig_map.add_trace(go.Scattergeo(
-            lon=[r[3] for r in callout_rows],
-            lat=[r[2] for r in callout_rows],
+            lon=leader_lon, lat=leader_lat, mode='lines',
+            line=dict(color='#555555', width=0.8),
+            showlegend=False, hoverinfo='skip'))
+
+        # A small dot pinning each leader line to the country centre.
+        fig_map.add_trace(go.Scattergeo(
+            lon=[r[3] for r in callout_rows], lat=[r[2] for r in callout_rows],
+            mode='markers', marker=dict(size=3, color='#333333'),
+            showlegend=False, hoverinfo='skip'))
+
+        # Label text at the open-water anchor. Values shown in US$ billions.
+        fig_map.add_trace(go.Scattergeo(
+            lon=[r[5] for r in callout_rows],
+            lat=[r[4] for r in callout_rows],
             text=[f"<b>{r[0]}</b><br>${r[1]/1e3:,.1f}B" for r in callout_rows],
             mode='text',
             showlegend=False,
@@ -823,7 +864,7 @@ with tab_map:
         title=dict(text=f'Total debt in default by country, {map_year} (US$ millions)',
                    x=0.01, font=dict(size=14, color='#222')),
         geo=dict(showframe=False, showcoastlines=True, coastlinecolor='#ffffff',
-                 coastlinewidth=0.4, projection_type='equirectangular',
+                 coastlinewidth=0.4, projection_type='robinson',
                  landcolor='#e6e6e6', showland=True,
                  showocean=True, oceancolor='#a9c7e8',
                  showlakes=True, lakecolor='#a9c7e8',
@@ -837,8 +878,9 @@ with tab_map:
 
     mapped = sum(1 for c in ISO3_MAP.values() if c)
     st.caption(f"{mapped} of {len(ISO3_MAP)} countries mapped · "
-               f"{counts['>50,000'] + counts['25,000 - 50,000']} in the top two bands in {map_year}. "
-               "Grey = no data or zero (includes dissolved states).")
+               f"{counts['>100,000'] + counts['50,000 - 100,000']} in the top two bands in {map_year}. "
+               "Grey = no data (includes dissolved states); near-white = zero / no default. "
+               "Country labels show totals in US$ billions.")
 
 # ── Footer ───────────────────────────────────────────────────────────────────
 st.divider()
