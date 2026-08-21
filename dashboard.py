@@ -54,6 +54,254 @@ ISO3_MAP = {
     'Yugoslavia': None, 'Zambia': 'ZMB', 'Zimbabwe': 'ZWE',
 }
 
+# Country centroids (ISO3 -> lat, lon, DISPLAY NAME) for in-frame labels on
+# regional extracts. Sourced from the Google canonical country dataset; Plotly
+# clips these to whatever geographic scope is in view, so only the countries
+# inside the selected region are labelled.
+COUNTRY_CENTROIDS = {
+    'ABW': (12.52, -69.97, 'ARUBA'),
+    'AFG': (33.94, 67.71, 'AFGHANISTAN'),
+    'AGO': (-11.2, 17.87, 'ANGOLA'),
+    'AIA': (18.22, -63.07, 'ANGUILLA'),
+    'ALB': (41.15, 20.17, 'ALBANIA'),
+    'AND': (42.55, 1.6, 'ANDORRA'),
+    'ARE': (23.42, 53.85, 'UNITED ARAB EMIRATES'),
+    'ARG': (-38.42, -63.62, 'ARGENTINA'),
+    'ARM': (40.07, 45.04, 'ARMENIA'),
+    'ASM': (-14.27, -170.13, 'AMERICAN SAMOA'),
+    'ATA': (-75.25, -0.07, 'ANTARCTICA'),
+    'ATF': (-49.28, 69.35, 'FRENCH SOUTHERN TERRITORIES'),
+    'ATG': (17.06, -61.8, 'ANTIGUA AND BARBUDA'),
+    'AUS': (-25.27, 133.78, 'AUSTRALIA'),
+    'AUT': (47.52, 14.55, 'AUSTRIA'),
+    'AZE': (40.14, 47.58, 'AZERBAIJAN'),
+    'BDI': (-3.37, 29.92, 'BURUNDI'),
+    'BEL': (50.5, 4.47, 'BELGIUM'),
+    'BEN': (9.31, 2.32, 'BENIN'),
+    'BFA': (12.24, -1.56, 'BURKINA FASO'),
+    'BGD': (23.68, 90.36, 'BANGLADESH'),
+    'BGR': (42.73, 25.49, 'BULGARIA'),
+    'BHR': (25.93, 50.64, 'BAHRAIN'),
+    'BHS': (25.03, -77.4, 'BAHAMAS'),
+    'BIH': (43.92, 17.68, 'BOSNIA AND HERZEGOVINA'),
+    'BLR': (53.71, 27.95, 'BELARUS'),
+    'BLZ': (17.19, -88.5, 'BELIZE'),
+    'BMU': (32.32, -64.76, 'BERMUDA'),
+    'BOL': (-16.29, -63.59, 'BOLIVIA'),
+    'BRA': (-14.24, -51.93, 'BRAZIL'),
+    'BRB': (13.19, -59.54, 'BARBADOS'),
+    'BRN': (4.54, 114.73, 'BRUNEI'),
+    'BTN': (27.51, 90.43, 'BHUTAN'),
+    'BVT': (-54.42, 3.41, 'BOUVET ISLAND'),
+    'BWA': (-22.33, 24.68, 'BOTSWANA'),
+    'CAF': (6.61, 20.94, 'CENTRAL AFRICAN REPUBLIC'),
+    'CAN': (56.13, -106.35, 'CANADA'),
+    'CCK': (-12.16, 96.87, 'COCOS [KEELING] ISLANDS'),
+    'CHE': (46.82, 8.23, 'SWITZERLAND'),
+    'CHL': (-35.68, -71.54, 'CHILE'),
+    'CHN': (35.86, 104.2, 'CHINA'),
+    'CIV': (7.54, -5.55, "CÔTE D'IVOIRE"),
+    'CMR': (7.37, 12.35, 'CAMEROON'),
+    'COD': (-4.04, 21.76, 'CONGO [DRC]'),
+    'COG': (-0.23, 15.83, 'CONGO [REPUBLIC]'),
+    'COK': (-21.24, -159.78, 'COOK ISLANDS'),
+    'COL': (4.57, -74.3, 'COLOMBIA'),
+    'COM': (-11.88, 43.87, 'COMOROS'),
+    'CPV': (16.0, -24.01, 'CAPE VERDE'),
+    'CRI': (9.75, -83.75, 'COSTA RICA'),
+    'CUB': (21.52, -77.78, 'CUBA'),
+    'CXR': (-10.45, 105.69, 'CHRISTMAS ISLAND'),
+    'CYM': (19.51, -80.57, 'CAYMAN ISLANDS'),
+    'CYP': (35.13, 33.43, 'CYPRUS'),
+    'CZE': (49.82, 15.47, 'CZECH REPUBLIC'),
+    'DEU': (51.17, 10.45, 'GERMANY'),
+    'DJI': (11.83, 42.59, 'DJIBOUTI'),
+    'DMA': (15.41, -61.37, 'DOMINICA'),
+    'DNK': (56.26, 9.5, 'DENMARK'),
+    'DOM': (18.74, -70.16, 'DOMINICAN REPUBLIC'),
+    'DZA': (28.03, 1.66, 'ALGERIA'),
+    'ECU': (-1.83, -78.18, 'ECUADOR'),
+    'EGY': (26.82, 30.8, 'EGYPT'),
+    'ERI': (15.18, 39.78, 'ERITREA'),
+    'ESH': (24.22, -12.89, 'WESTERN SAHARA'),
+    'ESP': (40.46, -3.75, 'SPAIN'),
+    'EST': (58.6, 25.01, 'ESTONIA'),
+    'ETH': (9.14, 40.49, 'ETHIOPIA'),
+    'FIN': (61.92, 25.75, 'FINLAND'),
+    'FJI': (-16.58, 179.41, 'FIJI'),
+    'FLK': (-51.8, -59.52, 'FALKLAND ISLANDS [ISLAS MALVINAS]'),
+    'FRA': (46.23, 2.21, 'FRANCE'),
+    'FRO': (61.89, -6.91, 'FAROE ISLANDS'),
+    'FSM': (7.43, 150.55, 'MICRONESIA'),
+    'GAB': (-0.8, 11.61, 'GABON'),
+    'GBR': (55.38, -3.44, 'UNITED KINGDOM'),
+    'GEO': (42.32, 43.36, 'GEORGIA'),
+    'GGY': (49.47, -2.59, 'GUERNSEY'),
+    'GHA': (7.95, -1.02, 'GHANA'),
+    'GIB': (36.14, -5.35, 'GIBRALTAR'),
+    'GIN': (9.95, -9.7, 'GUINEA'),
+    'GLP': (17.0, -62.07, 'GUADELOUPE'),
+    'GMB': (13.44, -15.31, 'GAMBIA'),
+    'GNB': (11.8, -15.18, 'GUINEA-BISSAU'),
+    'GNQ': (1.65, 10.27, 'EQUATORIAL GUINEA'),
+    'GRC': (39.07, 21.82, 'GREECE'),
+    'GRD': (12.26, -61.6, 'GRENADA'),
+    'GRL': (71.71, -42.6, 'GREENLAND'),
+    'GTM': (15.78, -90.23, 'GUATEMALA'),
+    'GUF': (3.93, -53.13, 'FRENCH GUIANA'),
+    'GUM': (13.44, 144.79, 'GUAM'),
+    'GUY': (4.86, -58.93, 'GUYANA'),
+    'HKG': (22.4, 114.11, 'HONG KONG'),
+    'HMD': (-53.08, 73.5, 'HEARD ISLAND AND MCDONALD ISLANDS'),
+    'HND': (15.2, -86.24, 'HONDURAS'),
+    'HRV': (45.1, 15.2, 'CROATIA'),
+    'HTI': (18.97, -72.29, 'HAITI'),
+    'HUN': (47.16, 19.5, 'HUNGARY'),
+    'IDN': (-0.79, 113.92, 'INDONESIA'),
+    'IMN': (54.24, -4.55, 'ISLE OF MAN'),
+    'IND': (20.59, 78.96, 'INDIA'),
+    'IOT': (-6.34, 71.88, 'BRITISH INDIAN OCEAN TERRITORY'),
+    'IRL': (53.41, -8.24, 'IRELAND'),
+    'IRN': (32.43, 53.69, 'IRAN'),
+    'IRQ': (33.22, 43.68, 'IRAQ'),
+    'ISL': (64.96, -19.02, 'ICELAND'),
+    'ISR': (31.05, 34.85, 'ISRAEL'),
+    'ITA': (41.87, 12.57, 'ITALY'),
+    'JAM': (18.11, -77.3, 'JAMAICA'),
+    'JEY': (49.21, -2.13, 'JERSEY'),
+    'JOR': (30.59, 36.24, 'JORDAN'),
+    'JPN': (36.2, 138.25, 'JAPAN'),
+    'KAZ': (48.02, 66.92, 'KAZAKHSTAN'),
+    'KEN': (-0.02, 37.91, 'KENYA'),
+    'KGZ': (41.2, 74.77, 'KYRGYZSTAN'),
+    'KHM': (12.57, 104.99, 'CAMBODIA'),
+    'KIR': (-3.37, -168.73, 'KIRIBATI'),
+    'KNA': (17.36, -62.78, 'SAINT KITTS AND NEVIS'),
+    'KOR': (35.91, 127.77, 'SOUTH KOREA'),
+    'KWT': (29.31, 47.48, 'KUWAIT'),
+    'LAO': (19.86, 102.5, 'LAOS'),
+    'LBN': (33.85, 35.86, 'LEBANON'),
+    'LBR': (6.43, -9.43, 'LIBERIA'),
+    'LBY': (26.34, 17.23, 'LIBYA'),
+    'LCA': (13.91, -60.98, 'SAINT LUCIA'),
+    'LIE': (47.17, 9.56, 'LIECHTENSTEIN'),
+    'LKA': (7.87, 80.77, 'SRI LANKA'),
+    'LSO': (-29.61, 28.23, 'LESOTHO'),
+    'LTU': (55.17, 23.88, 'LITHUANIA'),
+    'LUX': (49.82, 6.13, 'LUXEMBOURG'),
+    'LVA': (56.88, 24.6, 'LATVIA'),
+    'MAC': (22.2, 113.54, 'MACAU'),
+    'MAR': (31.79, -7.09, 'MOROCCO'),
+    'MCO': (43.75, 7.41, 'MONACO'),
+    'MDA': (47.41, 28.37, 'MOLDOVA'),
+    'MDG': (-18.77, 46.87, 'MADAGASCAR'),
+    'MDV': (3.2, 73.22, 'MALDIVES'),
+    'MEX': (23.63, -102.55, 'MEXICO'),
+    'MHL': (7.13, 171.18, 'MARSHALL ISLANDS'),
+    'MKD': (41.61, 21.75, 'MACEDONIA [FYROM]'),
+    'MLI': (17.57, -4.0, 'MALI'),
+    'MLT': (35.94, 14.38, 'MALTA'),
+    'MMR': (21.91, 95.96, 'MYANMAR [BURMA]'),
+    'MNE': (42.71, 19.37, 'MONTENEGRO'),
+    'MNG': (46.86, 103.85, 'MONGOLIA'),
+    'MNP': (17.33, 145.38, 'NORTHERN MARIANA ISLANDS'),
+    'MOZ': (-18.67, 35.53, 'MOZAMBIQUE'),
+    'MRT': (21.01, -10.94, 'MAURITANIA'),
+    'MSR': (16.74, -62.19, 'MONTSERRAT'),
+    'MTQ': (14.64, -61.02, 'MARTINIQUE'),
+    'MUS': (-20.35, 57.55, 'MAURITIUS'),
+    'MWI': (-13.25, 34.3, 'MALAWI'),
+    'MYS': (4.21, 101.98, 'MALAYSIA'),
+    'MYT': (-12.83, 45.17, 'MAYOTTE'),
+    'NAM': (-22.96, 18.49, 'NAMIBIA'),
+    'NCL': (-20.9, 165.62, 'NEW CALEDONIA'),
+    'NER': (17.61, 8.08, 'NIGER'),
+    'NFK': (-29.04, 167.95, 'NORFOLK ISLAND'),
+    'NGA': (9.08, 8.68, 'NIGERIA'),
+    'NIC': (12.87, -85.21, 'NICARAGUA'),
+    'NIU': (-19.05, -169.87, 'NIUE'),
+    'NLD': (52.13, 5.29, 'NETHERLANDS'),
+    'NOR': (60.47, 8.47, 'NORWAY'),
+    'NPL': (28.39, 84.12, 'NEPAL'),
+    'NRU': (-0.52, 166.93, 'NAURU'),
+    'NZL': (-40.9, 174.89, 'NEW ZEALAND'),
+    'OMN': (21.51, 55.92, 'OMAN'),
+    'PAK': (30.38, 69.35, 'PAKISTAN'),
+    'PAN': (8.54, -80.78, 'PANAMA'),
+    'PCN': (-24.7, -127.44, 'PITCAIRN ISLANDS'),
+    'PER': (-9.19, -75.02, 'PERU'),
+    'PHL': (12.88, 121.77, 'PHILIPPINES'),
+    'PLW': (7.51, 134.58, 'PALAU'),
+    'PNG': (-6.31, 143.96, 'PAPUA NEW GUINEA'),
+    'POL': (51.92, 19.15, 'POLAND'),
+    'PRI': (18.22, -66.59, 'PUERTO RICO'),
+    'PRK': (40.34, 127.51, 'NORTH KOREA'),
+    'PRT': (39.4, -8.22, 'PORTUGAL'),
+    'PRY': (-23.44, -58.44, 'PARAGUAY'),
+    'PSE': (31.95, 35.23, 'PALESTINIAN TERRITORIES'),
+    'PYF': (-17.68, -149.41, 'FRENCH POLYNESIA'),
+    'QAT': (25.35, 51.18, 'QATAR'),
+    'REU': (-21.12, 55.54, 'RÉUNION'),
+    'ROU': (45.94, 24.97, 'ROMANIA'),
+    'RUS': (61.52, 105.32, 'RUSSIA'),
+    'RWA': (-1.94, 29.87, 'RWANDA'),
+    'SAU': (23.89, 45.08, 'SAUDI ARABIA'),
+    'SDN': (12.86, 30.22, 'SUDAN'),
+    'SEN': (14.5, -14.45, 'SENEGAL'),
+    'SGP': (1.35, 103.82, 'SINGAPORE'),
+    'SGS': (-54.43, -36.59, 'SOUTH GEORGIA AND THE SOUTH SANDWICH ISLANDS'),
+    'SHN': (-24.14, -10.03, 'SAINT HELENA'),
+    'SJM': (77.55, 23.67, 'SVALBARD AND JAN MAYEN'),
+    'SLB': (-9.65, 160.16, 'SOLOMON ISLANDS'),
+    'SLE': (8.46, -11.78, 'SIERRA LEONE'),
+    'SLV': (13.79, -88.9, 'EL SALVADOR'),
+    'SMR': (43.94, 12.46, 'SAN MARINO'),
+    'SOM': (5.15, 46.2, 'SOMALIA'),
+    'SPM': (46.94, -56.27, 'SAINT PIERRE AND MIQUELON'),
+    'SRB': (44.02, 21.01, 'SERBIA'),
+    'STP': (0.19, 6.61, 'SÃO TOMÉ AND PRÍNCIPE'),
+    'SUR': (3.92, -56.03, 'SURINAME'),
+    'SVK': (48.67, 19.7, 'SLOVAKIA'),
+    'SVN': (46.15, 15.0, 'SLOVENIA'),
+    'SWE': (60.13, 18.64, 'SWEDEN'),
+    'SWZ': (-26.52, 31.47, 'SWAZILAND'),
+    'SYC': (-4.68, 55.49, 'SEYCHELLES'),
+    'SYR': (34.8, 39.0, 'SYRIA'),
+    'TCA': (21.69, -71.8, 'TURKS AND CAICOS ISLANDS'),
+    'TCD': (15.45, 18.73, 'CHAD'),
+    'TGO': (8.62, 0.82, 'TOGO'),
+    'THA': (15.87, 100.99, 'THAILAND'),
+    'TJK': (38.86, 71.28, 'TAJIKISTAN'),
+    'TKL': (-8.97, -171.86, 'TOKELAU'),
+    'TKM': (38.97, 59.56, 'TURKMENISTAN'),
+    'TLS': (-8.87, 125.73, 'TIMOR-LESTE'),
+    'TON': (-21.18, -175.2, 'TONGA'),
+    'TTO': (10.69, -61.22, 'TRINIDAD AND TOBAGO'),
+    'TUN': (33.89, 9.54, 'TUNISIA'),
+    'TUR': (38.96, 35.24, 'TURKEY'),
+    'TUV': (-7.11, 177.65, 'TUVALU'),
+    'TWN': (23.7, 120.96, 'TAIWAN'),
+    'TZA': (-6.37, 34.89, 'TANZANIA'),
+    'UGA': (1.37, 32.29, 'UGANDA'),
+    'UKR': (48.38, 31.17, 'UKRAINE'),
+    'URY': (-32.52, -55.77, 'URUGUAY'),
+    'USA': (37.09, -95.71, 'UNITED STATES'),
+    'UZB': (41.38, 64.59, 'UZBEKISTAN'),
+    'VAT': (41.9, 12.45, 'VATICAN CITY'),
+    'VCT': (12.98, -61.29, 'SAINT VINCENT AND THE GRENADINES'),
+    'VEN': (6.42, -66.59, 'VENEZUELA'),
+    'VGB': (18.42, -64.64, 'BRITISH VIRGIN ISLANDS'),
+    'VIR': (18.34, -64.9, 'U.S. VIRGIN ISLANDS'),
+    'VNM': (14.06, 108.28, 'VIETNAM'),
+    'VUT': (-15.38, 166.96, 'VANUATU'),
+    'WLF': (-13.77, -177.16, 'WALLIS AND FUTUNA'),
+    'WSM': (-13.76, -172.1, 'SAMOA'),
+    'YEM': (15.55, 48.52, 'YEMEN'),
+    'ZAF': (-30.56, 22.94, 'SOUTH AFRICA'),
+    'ZMB': (-13.13, 27.85, 'ZAMBIA'),
+    'ZWE': (-19.02, 29.15, 'ZIMBABWE'),
+}
+
 # ── Palettes (matched to the published charts) ───────────────────────────────
 CREDITOR_ORDER = ['IMF', 'IBRD', 'IDA', 'IADB', 'Paris Club', 'China',
                   'Other official creditors', 'FC bank loans', 'FC bonds',
@@ -740,10 +988,21 @@ with tab_map:
                 return lab
         return MAP_LABELS[-1]
 
+    REGION_SCOPES = {
+        'World': 'world', 'Africa': 'africa', 'Asia': 'asia', 'Europe': 'europe',
+        'North America': 'north america', 'South America': 'south america',
+    }
     opts = span() or years
-    map_year = st.select_slider("Map year", options=opts,
-                                value=LAST_OBS if LAST_OBS in opts else opts[-1],
-                                key="map_year")
+    col_yr, col_rg = st.columns([3, 1])
+    with col_yr:
+        map_year = st.select_slider("Map year", options=opts,
+                                    value=LAST_OBS if LAST_OBS in opts else opts[-1],
+                                    key="map_year")
+    with col_rg:
+        region = st.selectbox("Regional extract", list(REGION_SCOPES),
+                              index=0, key="map_region")
+    map_scope = REGION_SCOPES[region]
+    is_world = map_scope == 'world'
 
     fig_map = go.Figure()
     counts = {lab: 0 for lab in MAP_ORDER}
@@ -770,19 +1029,31 @@ with tab_map:
             name=lab, showlegend=True, legendgroup=lab,
             hovertemplate='<b>%{text}</b><br>' + lab + '<br>%{customdata}<extra></extra>'))
 
-    continents = [('NORTH AMERICA', 46, -100), ('SOUTH AMERICA', -14, -58),
-                  ('EUROPE', 56, -12), ('AFRICA', 11, 18),
-                  ('ASIA', 50, 100), ('AUSTRALIA', -25, 134)]
-    oceans = [('Atlantic<br>Ocean', 6, -34), ('Pacific<br>Ocean', 18, -150),
-              ('Pacific<br>Ocean', -20, -120), ('Indian<br>Ocean', -28, 80)]
-    fig_map.add_trace(go.Scattergeo(
-        lon=[c[2] for c in continents], lat=[c[1] for c in continents],
-        text=[c[0] for c in continents], mode='text', showlegend=False, hoverinfo='skip',
-        textfont=dict(color='#6b6b6b', size=13, family='Arial Black')))
-    fig_map.add_trace(go.Scattergeo(
-        lon=[o[2] for o in oceans], lat=[o[1] for o in oceans],
-        text=[o[0] for o in oceans], mode='text', showlegend=False, hoverinfo='skip',
-        textfont=dict(color='#5b7fb0', size=11, family='Arial')))
+    # Continent / ocean overlays make sense only on the full world view; on a
+    # regional extract we instead label individual countries (added below).
+    if is_world:
+        continents = [('NORTH AMERICA', 46, -100), ('SOUTH AMERICA', -14, -58),
+                      ('EUROPE', 56, -12), ('AFRICA', 11, 18),
+                      ('ASIA', 50, 100), ('AUSTRALIA', -25, 134)]
+        oceans = [('Atlantic<br>Ocean', 6, -34), ('Pacific<br>Ocean', 18, -150),
+                  ('Pacific<br>Ocean', -20, -120), ('Indian<br>Ocean', -28, 80)]
+        fig_map.add_trace(go.Scattergeo(
+            lon=[c[2] for c in continents], lat=[c[1] for c in continents],
+            text=[c[0] for c in continents], mode='text', showlegend=False, hoverinfo='skip',
+            textfont=dict(color='#6b6b6b', size=13, family='Arial Black')))
+        fig_map.add_trace(go.Scattergeo(
+            lon=[o[2] for o in oceans], lat=[o[1] for o in oceans],
+            text=[o[0] for o in oceans], mode='text', showlegend=False, hoverinfo='skip',
+            textfont=dict(color='#5b7fb0', size=11, family='Arial')))
+    else:
+        # Country-name labels for the regional extract. Plotly clips to the map
+        # scope, so only countries inside the selected region are drawn.
+        fig_map.add_trace(go.Scattergeo(
+            lon=[c[1] for c in COUNTRY_CENTROIDS.values()],
+            lat=[c[0] for c in COUNTRY_CENTROIDS.values()],
+            text=[c[2] for c in COUNTRY_CENTROIDS.values()],
+            mode='text', showlegend=False, hoverinfo='skip',
+            textfont=dict(color='#3a3a3a', size=8, family='Arial')))
 
     # ── Numeric callouts for major countries with > US$10,000M in default ──
     # Keep only the largest values so labels do not overwhelm the map.
@@ -831,7 +1102,7 @@ with tab_map:
     # Largest countries first; cap the number of visible labels.
     callout_rows = sorted(callout_rows, key=lambda x: x[1], reverse=True)[:MAX_CALLOUTS]
 
-    if callout_rows:
+    if callout_rows and is_world:
         # Leader lines from each country centre out to its label anchor.
         leader_lon, leader_lat = [], []
         for r in callout_rows:
@@ -859,18 +1130,28 @@ with tab_map:
             textfont=dict(color='#111111', size=11, family='Arial Black'),
         ))
 
+    geo_kw = dict(showframe=False, showcoastlines=True, coastlinecolor='#ffffff',
+                  coastlinewidth=0.4, landcolor='#e6e6e6', showland=True,
+                  showocean=True, oceancolor='#a9c7e8',
+                  showlakes=True, lakecolor='#a9c7e8',
+                  showcountries=True, countrycolor='#ffffff', countrywidth=0.4,
+                  bgcolor='rgba(0,0,0,0)')
+    if is_world:
+        # Robinson + a trimmed latitude band for the global view.
+        geo_kw.update(projection_type='robinson', lataxis_range=[-58, 85])
+    else:
+        # Built-in continental scope handles the zoom/extent for the extract.
+        geo_kw.update(scope=map_scope)
+
+    region_suffix = '' if is_world else f' — {region}'
     fig_map.update_layout(
         height=600,
-        title=dict(text=f'Total debt in default by country, {map_year} (US$ millions)',
-                   x=0.01, font=dict(size=14, color='#222')),
-        geo=dict(showframe=False, showcoastlines=True, coastlinecolor='#ffffff',
-                 coastlinewidth=0.4, projection_type='robinson',
-                 landcolor='#e6e6e6', showland=True,
-                 showocean=True, oceancolor='#a9c7e8',
-                 showlakes=True, lakecolor='#a9c7e8',
-                 showcountries=True, countrycolor='#ffffff', countrywidth=0.4,
-                 lataxis_range=[-58, 85], bgcolor='rgba(0,0,0,0)'),
-        legend=dict(title='<b>US$ millions</b>', x=0.012, y=0.55,
+        title=dict(
+            text=f'Total debt in default by country, {map_year}{region_suffix} (US$ millions)',
+            x=0.01, font=dict(size=14, color='#222')),
+        geo=geo_kw,
+        legend=dict(title='<b>US$ millions</b>',
+                    x=0.012, y=0.02, xanchor='left', yanchor='bottom',
                     bgcolor='rgba(255,255,255,0.92)', bordercolor='#bbb', borderwidth=1,
                     font=dict(size=11, color='#222'), itemsizing='constant'),
         margin=dict(l=0, r=0, t=40, b=0), paper_bgcolor='white')
