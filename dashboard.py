@@ -1036,6 +1036,12 @@ with tab_map:
             index=0, key="map_region"
         )
 
+    st.caption(
+        "All mapped countries are labelled. Debt-value callouts are shown only for "
+        "larger defaults to keep the map readable; exact values and ranking for every "
+        "country are available in the table below."
+    )
+
     # Build one reusable country-level frame per selected year. This is faster
     # than repeatedly scanning df_countries for every map band and every label.
     rows = []
@@ -1105,9 +1111,15 @@ with tab_map:
             )
         ))
 
-    # Labels: regional extracts show every mapped country name directly on the
-    # map, matching the supplied Africa reference. The world view stays cleaner.
-    if region != 'World' and not view_df.empty:
+    # ── Country labels ─────────────────────────────────────────────────────
+    # Always draw every mapped country in the selected view.  The previous world
+    # map only labelled the 12 largest defaults, which made many coloured
+    # countries look as if they were missing.  Values are kept separate from the
+    # country-name layer so large callouts do not hide smaller countries.
+    if not view_df.empty:
+        # All country names.  Use a smaller font on the world map and a larger
+        # one on regional extracts, where there is more room.
+        label_size = 7 if region == 'World' else 9
         fig_map.add_trace(go.Scattergeo(
             lon=view_df['lon'],
             lat=view_df['lat'],
@@ -1116,20 +1128,36 @@ with tab_map:
             showlegend=False,
             hoverinfo='skip',
             textfont=dict(
-                color='#383838',
-                size=9,
-                family='Arial Black'
+                color='#444444',
+                size=label_size,
+                family='Arial'
             )
         ))
-    elif region == 'World' and not positive.empty:
-        label_df = positive.head(12)
-        fig_map.add_trace(go.Scattergeo(
-            lon=label_df['lon'],
-            lat=label_df['lat'],
-            text=[f"{r.country.upper()}<br>${r.value/1e3:,.1f}B" for r in label_df.itertuples()],
-            mode='text', showlegend=False, hoverinfo='skip',
-            textfont=dict(color='#333333', size=9, family='Arial Black')
-        ))
+
+        # Debt-value callouts are restricted to large defaults.  This keeps the
+        # map readable while still showing every country's name.  Regional maps
+        # use a lower threshold because there is more space.
+        value_threshold = 10000 if region == 'World' else 1000
+        value_df = view_df[view_df['value'].fillna(0) >= value_threshold].copy()
+
+        if not value_df.empty:
+            fig_map.add_trace(go.Scattergeo(
+                lon=value_df['lon'],
+                lat=value_df['lat'],
+                text=[
+                    f"${r.value/1e3:,.1f}B"
+                    for r in value_df.itertuples()
+                ],
+                mode='text',
+                showlegend=False,
+                hoverinfo='skip',
+                textposition='bottom center',
+                textfont=dict(
+                    color='#202020',
+                    size=8 if region == 'World' else 9,
+                    family='Arial Black'
+                )
+            ))
 
     geo_kw = dict(
         showframe=False,
@@ -1146,7 +1174,7 @@ with tab_map:
         countrycolor='#8c8c8c',
         countrywidth=0.75,
         bgcolor='white',
-        projection_type='mercator',
+        projection_type='natural earth' if region == 'World' else 'mercator',
     )
 
     if region == 'World':
@@ -1167,7 +1195,7 @@ with tab_map:
     )
 
     fig_map.update_layout(
-        height=700 if region != 'World' else 650,
+        height=760 if region != 'World' else 780,
         geo=geo_kw,
         title=(
             None if region != 'World' else
