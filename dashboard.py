@@ -770,6 +770,54 @@ with tab_map:
         text=[o[0] for o in oceans], mode='text', showlegend=False, hoverinfo='skip',
         textfont=dict(color='#5b7fb0', size=11, family='Arial')))
 
+    # ── Numeric callouts for major countries with > US$10,000M in default ──
+    # Keep only the largest values so labels do not overwhelm the map.
+    CALLOUT_THRESHOLD = 10_000   # US$ millions
+    MAX_CALLOUTS = 8
+
+    # Approximate country-centre coordinates used only for text callouts.
+    CALLOUT_COORDS = {
+        'Argentina': (-38.4, -63.6),
+        'Brazil': (-14.2, -51.9),
+        'China': (35.9, 104.2),
+        'Greece': (39.1, 21.8),
+        'India': (20.6, 78.9),
+        'Indonesia': (-0.8, 113.9),
+        'Mexico': (23.6, -102.5),
+        'Pakistan': (30.4, 69.3),
+        'Russia': (61.5, 105.3),
+        'USSR/Russian Federation': (61.5, 105.3),
+        'South Africa': (-30.6, 22.9),
+        'Turkey': (39.0, 35.2),
+        'Ukraine': (48.4, 31.2),
+        'Venezuela': (6.4, -66.6),
+    }
+
+    callout_rows = []
+    for name in df_countries.index:
+        v = df_countries.loc[name, map_year]
+        if (
+            pd.notna(v)
+            and v > CALLOUT_THRESHOLD
+            and name in CALLOUT_COORDS
+        ):
+            lat, lon = CALLOUT_COORDS[name]
+            callout_rows.append((name, float(v), lat, lon))
+
+    # Largest countries first; cap the number of visible labels.
+    callout_rows = sorted(callout_rows, key=lambda x: x[1], reverse=True)[:MAX_CALLOUTS]
+
+    if callout_rows:
+        fig_map.add_trace(go.Scattergeo(
+            lon=[r[3] for r in callout_rows],
+            lat=[r[2] for r in callout_rows],
+            text=[f"<b>{r[0]}</b><br>${r[1]/1e3:,.1f}B" for r in callout_rows],
+            mode='text',
+            showlegend=False,
+            hoverinfo='skip',
+            textfont=dict(color='#111111', size=11, family='Arial Black'),
+        ))
+
     fig_map.update_layout(
         height=600,
         title=dict(text=f'Total debt in default by country, {map_year} (US$ millions)',
