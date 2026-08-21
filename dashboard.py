@@ -966,16 +966,15 @@ with tab_map:
     MAP_BINS = [0, 100, 1000, 10000, 25000, 50000, 100000, np.inf]
     MAP_LABELS = ['>0 - 100', '100 - 1,000', '1,000 - 10,000',
                   '10,000 - 25,000', '25,000 - 50,000', '50,000 - 100,000', '>100,000']
-    # Sequential ColorBrewer YlOrRd: perceived darkness increases monotonically,
-    # so bands can be ranked by intensity alone. "No data" and a genuine "Zero"
-    # get distinct neutral treatments rather than one shared grey.
     NODATA_LABEL = 'No data'
     ZERO_LABEL = 'Zero (no default)'
-    MAP_COLORS = {NODATA_LABEL: '#d9d9d9', ZERO_LABEL: '#f4f4f4',
-                  '>0 - 100': '#ffffb2', '100 - 1,000': '#fed976',
-                  '1,000 - 10,000': '#feb24c', '10,000 - 25,000': '#fd8d3c',
-                  '25,000 - 50,000': '#fc4e2a', '50,000 - 100,000': '#e31a1c',
-                  '>100,000': '#b10026'}
+    MAP_COLORS = {
+        NODATA_LABEL: '#d9d9d9', ZERO_LABEL: '#f4f4f4',
+        '>0 - 100': '#ffffb2', '100 - 1,000': '#fed976',
+        '1,000 - 10,000': '#feb24c', '10,000 - 25,000': '#fd8d3c',
+        '25,000 - 50,000': '#fc4e2a', '50,000 - 100,000': '#e31a1c',
+        '>100,000': '#b10026'
+    }
     MAP_ORDER = [NODATA_LABEL, ZERO_LABEL] + MAP_LABELS
 
     def bin_label(v):
@@ -988,180 +987,259 @@ with tab_map:
                 return lab
         return MAP_LABELS[-1]
 
-    REGION_SCOPES = {
-        'World': 'world', 'Africa': 'africa', 'Asia': 'asia', 'Europe': 'europe',
-        'North America': 'north america', 'South America': 'south america',
+    # Explicit regional extents are more reliable than Plotly's scope alone and
+    # make it possible to filter both the map data and the ranked country table.
+    REGION_BOUNDS = {
+        'World': None,
+        'Africa': dict(lon=(-25, 55), lat=(-38, 38)),
+        'Asia': dict(lon=(25, 180), lat=(-12, 80)),
+        'Europe': dict(lon=(-25, 45), lat=(34, 72)),
+        'North America': dict(lon=(-170, -50), lat=(5, 85)),
+        'South America': dict(lon=(-85, -30), lat=(-60, 15)),
     }
+
+    # Small exceptions improve treatment of countries whose centroids sit near
+    # continental boundaries. The first matching override wins.
+    REGION_OVERRIDES = {
+        'Europe': {'GBR', 'IRL', 'ISL', 'PRT', 'ESP', 'FRA', 'BEL', 'NLD', 'LUX', 'DEU',
+                   'CHE', 'AUT', 'ITA', 'MLT', 'DNK', 'NOR', 'SWE', 'FIN', 'EST', 'LVA',
+                   'LTU', 'POL', 'CZE', 'SVK', 'HUN', 'SVN', 'HRV', 'BIH', 'SRB', 'MNE',
+                   'MKD', 'ALB', 'GRC', 'BGR', 'ROU', 'MDA', 'UKR', 'BLR'},
+        'Asia': {'RUS', 'TUR', 'GEO', 'ARM', 'AZE', 'CYP', 'KAZ'},
+    }
+
+    def country_region(code, lat, lon):
+        if code in REGION_OVERRIDES['Europe']:
+            return 'Europe'
+        if code in REGION_OVERRIDES['Asia']:
+            return 'Asia'
+        # Order avoids most overlap between the rectangular extents.
+        for rg in ['Africa', 'South America', 'North America', 'Europe', 'Asia']:
+            b = REGION_BOUNDS[rg]
+            if b['lon'][0] <= lon <= b['lon'][1] and b['lat'][0] <= lat <= b['lat'][1]:
+                return rg
+        return 'Other'
+
     opts = span() or years
-    col_yr, col_rg = st.columns([3, 1])
-    with col_yr:
-        map_year = st.select_slider("Map year", options=opts,
-                                    value=LAST_OBS if LAST_OBS in opts else opts[-1],
-                                    key="map_year")
-    with col_rg:
-        region = st.selectbox("Regional extract", list(REGION_SCOPES),
-                              index=0, key="map_region")
-    map_scope = REGION_SCOPES[region]
-    is_world = map_scope == 'world'
+    c1, c2, c3 = st.columns([2.7, 1.3, 1.1])
+    with c1:
+        map_year = st.select_slider(
+            "Map year", options=opts,
+            value=LAST_OBS if LAST_OBS in opts else opts[-1],
+            key="map_year"
+        )
+    with c2:
+        region = st.selectbox(
+            "Regional extract", list(REGION_BOUNDS),
+            index=0, key="map_region"
+        )
+    with c3:
+        show_labels = st.checkbox(
+            "Country labels", value=(region != 'World'), key='map_country_labels'
+        )
+
+    # Build one country-level frame once. This replaces repeated nested loops
+    # through every country for every legend band.
+    rows = []
+    for name in df_countries.index:
+        code = ISO3_MAP.get(name)
+        centroid = COUNTRY_CENTROIDS.get(code) if code else None
+        if not code or not centroid:
+            continue
+        lat, lon, display_name = centroid
+        value = df_countries.loc[name, map_year]
+        rows.append({
+            'source_name': name,
+            'country': display_name.title(),
+            'code': code,
+            'lat': float(lat),
+            'lon': float(lon),
+            'value': np.nan if pd.isna(value) else float(value),
+            'band': bin_label(value),
+            'region': country_region(code, float(lat), float(lon)),
+        })
+
+    map_df = pd.DataFrame(rows)
+    view_df = map_df if region == 'World' else map_df[map_df['region'] == region].copy()
+
+    # Rank positive debt values within the currently selected extract.
+    positive = view_df[view_df['value'].fillna(0) > 0].copy()
+    positive = positive.sort_values(['value', 'country'], ascending=[False, True])
+    positive['rank'] = np.arange(1, len(positive) + 1)
+    rank_lookup = dict(zip(positive['code'], positive['rank']))
+    view_df['rank'] = view_df['code'].map(rank_lookup)
 
     fig_map = go.Figure()
     counts = {lab: 0 for lab in MAP_ORDER}
-    for lab in MAP_ORDER:
-        locs, txt, cd = [], [], []
-        for name in df_countries.index:
-            code = ISO3_MAP.get(name)
-            if not code:
-                continue
-            v = df_countries.loc[name, map_year]
-            if bin_label(v) == lab:
-                locs.append(code); txt.append(name)
-                if pd.isna(v):
-                    cd.append("No data")
-                elif v <= 0:
-                    cd.append("Zero (no default)")
-                else:
-                    cd.append(f"${v:,.0f}M")
-                counts[lab] += 1
-        fig_map.add_trace(go.Choropleth(
-            locations=locs, z=[0] * len(locs), text=txt, customdata=cd,
-            colorscale=[[0, MAP_COLORS[lab]], [1, MAP_COLORS[lab]]], showscale=False,
-            marker_line_color='#ffffff', marker_line_width=0.4,
-            name=lab, showlegend=True, legendgroup=lab,
-            hovertemplate='<b>%{text}</b><br>' + lab + '<br>%{customdata}<extra></extra>'))
 
-    # Continent / ocean overlays make sense only on the full world view; on a
-    # regional extract we instead label individual countries (added below).
-    if is_world:
+    # One trace per band preserves the discrete legend while filtering only the
+    # countries actually belonging to the selected regional extract.
+    for lab in MAP_ORDER:
+        band_df = view_df[view_df['band'] == lab]
+        counts[lab] = len(band_df)
+        if band_df.empty:
+            continue
+
+        custom = []
+        for _, r in band_df.iterrows():
+            if pd.isna(r['value']):
+                val_text = 'No data'
+            elif r['value'] <= 0:
+                val_text = 'Zero (no default)'
+            else:
+                val_text = f"${r['value']:,.0f}M (${r['value']/1e3:,.1f}B)"
+            rank_text = '' if pd.isna(r['rank']) else f"Rank #{int(r['rank'])} in {region}"
+            custom.append([val_text, rank_text])
+
+        fig_map.add_trace(go.Choropleth(
+            locations=band_df['code'],
+            z=np.zeros(len(band_df)),
+            text=band_df['country'],
+            customdata=custom,
+            colorscale=[[0, MAP_COLORS[lab]], [1, MAP_COLORS[lab]]],
+            showscale=False,
+            marker_line_color='#ffffff', marker_line_width=0.45,
+            name=lab, showlegend=True, legendgroup=lab,
+            hovertemplate=(
+                '<b>%{text}</b><br>' + lab +
+                '<br>%{customdata[0]}<br>%{customdata[1]}<extra></extra>'
+            )
+        ))
+
+    # Country labels are filtered to the selected region. On regional extracts,
+    # show all mapped countries; on the world map, only show the largest values
+    # to avoid unreadable label density.
+    if show_labels and not view_df.empty:
+        if region == 'World':
+            label_df = positive.head(12)
+            label_text = [
+                f"<b>{r.country}</b><br>${r.value/1e3:,.1f}B"
+                for r in label_df.itertuples()
+            ]
+        else:
+            label_df = view_df.copy()
+            label_text = []
+            for r in label_df.itertuples():
+                if pd.isna(r.value):
+                    label_text.append(r.country)
+                elif r.value > 0:
+                    rk = rank_lookup.get(r.code)
+                    label_text.append(f"<b>{r.country}</b><br>#{rk} · ${r.value/1e3:,.1f}B")
+                else:
+                    label_text.append(r.country)
+
+        fig_map.add_trace(go.Scattergeo(
+            lon=label_df['lon'], lat=label_df['lat'],
+            text=label_text, mode='text',
+            showlegend=False, hoverinfo='skip',
+            textfont=dict(color='#242424', size=8 if region != 'World' else 10,
+                          family='Arial')
+        ))
+
+    # World-only continent labels.
+    if region == 'World':
         continents = [('NORTH AMERICA', 46, -100), ('SOUTH AMERICA', -14, -58),
                       ('EUROPE', 56, -12), ('AFRICA', 11, 18),
                       ('ASIA', 50, 100), ('AUSTRALIA', -25, 134)]
-        oceans = [('Atlantic<br>Ocean', 6, -34), ('Pacific<br>Ocean', 18, -150),
-                  ('Pacific<br>Ocean', -20, -120), ('Indian<br>Ocean', -28, 80)]
         fig_map.add_trace(go.Scattergeo(
-            lon=[c[2] for c in continents], lat=[c[1] for c in continents],
-            text=[c[0] for c in continents], mode='text', showlegend=False, hoverinfo='skip',
-            textfont=dict(color='#6b6b6b', size=13, family='Arial Black')))
-        fig_map.add_trace(go.Scattergeo(
-            lon=[o[2] for o in oceans], lat=[o[1] for o in oceans],
-            text=[o[0] for o in oceans], mode='text', showlegend=False, hoverinfo='skip',
-            textfont=dict(color='#5b7fb0', size=11, family='Arial')))
-    else:
-        # Country-name labels for the regional extract. Plotly clips to the map
-        # scope, so only countries inside the selected region are drawn.
-        fig_map.add_trace(go.Scattergeo(
-            lon=[c[1] for c in COUNTRY_CENTROIDS.values()],
-            lat=[c[0] for c in COUNTRY_CENTROIDS.values()],
-            text=[c[2] for c in COUNTRY_CENTROIDS.values()],
-            mode='text', showlegend=False, hoverinfo='skip',
-            textfont=dict(color='#3a3a3a', size=8, family='Arial')))
-
-    # ── Numeric callouts for major countries with > US$10,000M in default ──
-    # Keep only the largest values so labels do not overwhelm the map.
-    CALLOUT_THRESHOLD = 10_000   # US$ millions
-    MAX_CALLOUTS = 8
-
-    # Country-centre coordinates (the leader-line anchor on the polygon) plus a
-    # hand-tuned label position sitting in open water / empty space, so labels
-    # no longer overlap their own country. Each entry: (centre_lat, centre_lon,
-    # label_lat, label_lon).
-    CALLOUT_COORDS = {
-        'Argentina':               (-38.4, -63.6, -40.0, -48.0),
-        'Brazil':                  (-14.2, -51.9,  -6.0, -34.0),
-        'China':                   ( 35.9, 104.2,  29.0, 121.0),
-        'Greece':                  ( 39.1,  21.8,  33.0,  19.0),
-        'India':                   ( 20.6,  78.9,  11.0,  70.0),
-        'Indonesia':               ( -0.8, 113.9, -11.0, 118.0),
-        'Mexico':                  ( 23.6,-102.5,  27.0,-118.0),
-        'Pakistan':                ( 30.4,  69.3,  23.0,  61.0),
-        'Russia':                  ( 61.5, 105.3,  71.0, 110.0),
-        'USSR/Russian Federation': ( 61.5, 105.3,  71.0, 110.0),
-        'South Africa':            (-30.6,  22.9, -39.0,  18.0),
-        'Turkey':                  ( 39.0,  35.2,  34.0,  42.0),
-        'Ukraine':                 ( 48.4,  31.2,  42.0,  20.0),
-        'Venezuela':               (  6.4, -66.6,  15.0, -58.0),
-    }
-
-    def callout_display_name(name, year):
-        # Avoid the anachronism of labelling the modern state "USSR".
-        if name == 'USSR/Russian Federation':
-            return 'Russia' if year >= 1992 else 'USSR'
-        return name
-
-    callout_rows = []
-    for name in df_countries.index:
-        v = df_countries.loc[name, map_year]
-        if (
-            pd.notna(v)
-            and v > CALLOUT_THRESHOLD
-            and name in CALLOUT_COORDS
-        ):
-            clat, clon, llat, llon = CALLOUT_COORDS[name]
-            callout_rows.append((callout_display_name(name, map_year),
-                                 float(v), clat, clon, llat, llon))
-
-    # Largest countries first; cap the number of visible labels.
-    callout_rows = sorted(callout_rows, key=lambda x: x[1], reverse=True)[:MAX_CALLOUTS]
-
-    if callout_rows and is_world:
-        # Leader lines from each country centre out to its label anchor.
-        leader_lon, leader_lat = [], []
-        for r in callout_rows:
-            leader_lon += [r[3], r[5], None]
-            leader_lat += [r[2], r[4], None]
-        fig_map.add_trace(go.Scattergeo(
-            lon=leader_lon, lat=leader_lat, mode='lines',
-            line=dict(color='#555555', width=0.8),
-            showlegend=False, hoverinfo='skip'))
-
-        # A small dot pinning each leader line to the country centre.
-        fig_map.add_trace(go.Scattergeo(
-            lon=[r[3] for r in callout_rows], lat=[r[2] for r in callout_rows],
-            mode='markers', marker=dict(size=3, color='#333333'),
-            showlegend=False, hoverinfo='skip'))
-
-        # Label text at the open-water anchor. Values shown in US$ billions.
-        fig_map.add_trace(go.Scattergeo(
-            lon=[r[5] for r in callout_rows],
-            lat=[r[4] for r in callout_rows],
-            text=[f"<b>{r[0]}</b><br>${r[1]/1e3:,.1f}B" for r in callout_rows],
-            mode='text',
-            showlegend=False,
-            hoverinfo='skip',
-            textfont=dict(color='#111111', size=11, family='Arial Black'),
+            lon=[x[2] for x in continents], lat=[x[1] for x in continents],
+            text=[x[0] for x in continents], mode='text',
+            showlegend=False, hoverinfo='skip',
+            textfont=dict(color='#6b6b6b', size=12, family='Arial Black')
         ))
 
-    geo_kw = dict(showframe=False, showcoastlines=True, coastlinecolor='#ffffff',
-                  coastlinewidth=0.4, landcolor='#e6e6e6', showland=True,
-                  showocean=True, oceancolor='#a9c7e8',
-                  showlakes=True, lakecolor='#a9c7e8',
-                  showcountries=True, countrycolor='#ffffff', countrywidth=0.4,
-                  bgcolor='rgba(0,0,0,0)')
-    if is_world:
-        # Robinson + a trimmed latitude band for the global view.
-        geo_kw.update(projection_type='robinson', lataxis_range=[-58, 85])
-    else:
-        # Built-in continental scope handles the zoom/extent for the extract.
-        geo_kw.update(scope=map_scope)
+    geo_kw = dict(
+        showframe=False, showcoastlines=True, coastlinecolor='#ffffff',
+        coastlinewidth=0.4, landcolor='#e6e6e6', showland=True,
+        showocean=True, oceancolor='#a9c7e8', showlakes=True, lakecolor='#a9c7e8',
+        showcountries=True, countrycolor='#ffffff', countrywidth=0.4,
+        bgcolor='rgba(0,0,0,0)', projection_type='natural earth'
+    )
 
-    region_suffix = '' if is_world else f' — {region}'
+    if region == 'World':
+        geo_kw.update(lataxis_range=[-58, 85])
+    else:
+        b = REGION_BOUNDS[region]
+        geo_kw.update(
+            lonaxis=dict(range=list(b['lon']), showgrid=False),
+            lataxis=dict(range=list(b['lat']), showgrid=False),
+        )
+
+    region_suffix = '' if region == 'World' else f' — {region}'
     fig_map.update_layout(
-        height=600,
+        height=650,
         title=dict(
             text=f'Total debt in default by country, {map_year}{region_suffix} (US$ millions)',
-            x=0.01, font=dict(size=14, color='#222')),
+            x=0.01, font=dict(size=14, color='#222')
+        ),
         geo=geo_kw,
-        legend=dict(title='<b>US$ millions</b>',
-                    x=0.012, y=0.02, xanchor='left', yanchor='bottom',
-                    bgcolor='rgba(255,255,255,0.92)', bordercolor='#bbb', borderwidth=1,
-                    font=dict(size=11, color='#222'), itemsizing='constant'),
-        margin=dict(l=0, r=0, t=40, b=0), paper_bgcolor='white')
-    show_chart(fig_map, f"global_debt_default_map_{map_year}.html", "cmap")
+        legend=dict(
+            title='<b>US$ millions</b>', x=0.012, y=0.02,
+            xanchor='left', yanchor='bottom',
+            bgcolor='rgba(255,255,255,0.92)', bordercolor='#bbb', borderwidth=1,
+            font=dict(size=10.5, color='#222'), itemsizing='constant'
+        ),
+        margin=dict(l=0, r=0, t=45, b=0), paper_bgcolor='white'
+    )
 
-    mapped = sum(1 for c in ISO3_MAP.values() if c)
-    st.caption(f"{mapped} of {len(ISO3_MAP)} countries mapped · "
-               f"{counts['>100,000'] + counts['50,000 - 100,000']} in the top two bands in {map_year}. "
-               "Grey = no data (includes dissolved states); near-white = zero / no default. "
-               "Country labels show totals in US$ billions.")
+    show_chart(
+        fig_map,
+        f"debt_default_map_{region.lower().replace(' ', '_')}_{map_year}.html",
+        "cmap"
+    )
+
+    # ── Regional/country extract ────────────────────────────────────────────
+    st.divider()
+    st.markdown(f"### {region} country ranking — {map_year}")
+
+    table_df = view_df.copy()
+    table_df['Debt in default (US$M)'] = table_df['value']
+    table_df['Debt in default (US$B)'] = table_df['value'] / 1e3
+    table_df['Order'] = table_df['rank']
+    table_df['Status'] = table_df['band']
+
+    # Positive/defaulting countries first by rank, then zero/no-data countries
+    # alphabetically so every country in the extract remains visible.
+    table_df['_sort_group'] = np.where(table_df['rank'].notna(), 0,
+                              np.where(table_df['value'].fillna(0).eq(0), 1, 2))
+    table_df['_sort_rank'] = table_df['rank'].fillna(10_000)
+    table_df = table_df.sort_values(
+        ['_sort_group', '_sort_rank', 'country'], ascending=[True, True, True]
+    )
+
+    display_df = table_df[[
+        'Order', 'country', 'code', 'Debt in default (US$M)',
+        'Debt in default (US$B)', 'Status'
+    ]].rename(columns={'country': 'Country', 'code': 'ISO3'})
+
+    display_df['Order'] = display_df['Order'].apply(
+        lambda x: '' if pd.isna(x) else int(x)
+    )
+
+    m1, m2, m3 = st.columns(3)
+    m1.metric("Countries shown", f"{len(view_df):,}")
+    m2.metric("Countries with debt in default", f"{len(positive):,}")
+    m3.metric("Debt in default", f"${positive['value'].sum()/1e3:,.1f}B")
+
+    st.dataframe(
+        display_df,
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            'Order': st.column_config.NumberColumn('Order', format='%d'),
+            'Debt in default (US$M)': st.column_config.NumberColumn(format='$%,.0f'),
+            'Debt in default (US$B)': st.column_config.NumberColumn(format='$%,.1f'),
+        },
+        height=min(700, 38 + 35 * min(len(display_df), 18))
+    )
+
+    mapped = len(map_df)
+    st.caption(
+        f"{mapped} countries with map coordinates available · "
+        f"{len(view_df)} shown in the selected extract · "
+        f"{len(positive)} have debt in default in {map_year}. "
+        "Order ranks countries from highest to lowest debt in default within the selected extract."
+    )
 
 # ── Footer ───────────────────────────────────────────────────────────────────
 st.divider()
