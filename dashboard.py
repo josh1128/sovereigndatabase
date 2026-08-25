@@ -1256,3 +1256,109 @@ with tab_map:
         showlakes=True,
         lakecolor='#a9c7e8',
         showcountries=True,
+        countrycolor='#8c8c8c',
+        countrywidth=0.75,
+        bgcolor='white',
+        projection_type='natural earth' if region == 'World' else 'mercator',
+    )
+
+    if region == 'World':
+        geo_kw.update(lataxis_range=[-58, 85])
+    else:
+        b = REGION_BOUNDS[region]
+        geo_kw.update(
+            lonaxis=dict(range=list(b['lon']), showgrid=False),
+            lataxis=dict(range=list(b['lat']), showgrid=False),
+        )
+
+    # For regional extracts, put the year/title inside the legend box in the
+    # lower-left corner, like the supplied reference image.
+    legend_title = (
+        f"<b>{map_year} total debt in default<br>by country (US$ millions)</b>"
+        if region != 'World'
+        else '<b>US$ millions</b>'
+    )
+
+    fig_map.update_layout(
+        height=REGION_HEIGHTS.get(region, 780),
+        geo=geo_kw,
+        title=(
+            None if region != 'World' else
+            dict(text=f'Total debt in default by country, {map_year} (US$ millions)',
+                 x=0.01, font=dict(size=14, color='#222'))
+        ),
+        legend=dict(
+            title=dict(text=legend_title, font=dict(size=13, color='#111111')),
+            x=0.02,
+            y=0.03,
+            xanchor='left',
+            yanchor='bottom',
+            bgcolor='rgba(255,255,255,0.95)',
+            bordercolor='#c7c7c7',
+            borderwidth=1,
+            font=dict(size=11, color='#111111'),
+            itemsizing='constant',
+            traceorder='normal',
+        ),
+        margin=dict(l=0, r=0, t=20 if region != 'World' else 45, b=0),
+        paper_bgcolor='white',
+    )
+
+    show_chart(
+        fig_map,
+        f"debt_default_map_{region.lower().replace(' ', '_')}_{map_year}.html",
+        "cmap"
+    )
+
+    # ── Regional/country extract ────────────────────────────────────────────
+    st.divider()
+    st.markdown(f"### {region} country order — {map_year}")
+
+    table_df = view_df.copy()
+    table_df['Debt in default (US$M)'] = table_df['value']
+    table_df['Debt in default (US$B)'] = table_df['value'] / 1e3
+    table_df['Order'] = table_df['rank']
+    table_df['Band'] = table_df['band'].fillna('No default / no data')
+
+    table_df['_sort_group'] = np.where(table_df['rank'].notna(), 0, 1)
+    table_df['_sort_rank'] = table_df['rank'].fillna(10_000)
+    table_df = table_df.sort_values(
+        ['_sort_group', '_sort_rank', 'country'], ascending=[True, True, True]
+    )
+
+    display_df = table_df[[
+        'Order', 'country', 'code', 'Debt in default (US$M)',
+        'Debt in default (US$B)', 'Band'
+    ]].rename(columns={'country': 'Country', 'code': 'ISO3'})
+
+    display_df['Order'] = display_df['Order'].apply(
+        lambda x: '' if pd.isna(x) else int(x)
+    )
+
+    m1, m2, m3 = st.columns(3)
+    m1.metric("Countries shown", f"{len(view_df):,}")
+    m2.metric("Countries with debt in default", f"{len(positive):,}")
+    m3.metric("Debt in default", f"${positive['value'].sum()/1e3:,.1f}B")
+
+    st.dataframe(
+        display_df,
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            'Order': st.column_config.NumberColumn('Order', format='%d'),
+            'Debt in default (US$M)': st.column_config.NumberColumn(format='$%,.0f'),
+            'Debt in default (US$B)': st.column_config.NumberColumn(format='$%,.1f'),
+        },
+        height=min(700, 38 + 35 * min(len(display_df), 18))
+    )
+
+    st.caption(
+        f"{len(view_df)} countries shown in {region} · "
+        f"{len(positive)} have debt in default in {map_year}. "
+        "Order ranks defaulting countries from highest to lowest debt in default."
+    )
+
+# ── Footer ───────────────────────────────────────────────────────────────────
+st.divider()
+st.caption(f"Source: BoC–BoE Sovereign Default Database · Last update: July 22, 2026 · "
+           f"Last observation: {LAST_OBS} · Built with Streamlit + Plotly")
