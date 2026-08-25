@@ -996,11 +996,20 @@ with tab_map:
     # than depending on Plotly's broad continent scope.
     REGION_BOUNDS = {
         'World': None,
-        'Africa': dict(lon=(-22, 55), lat=(-38, 38)),
-        'Asia': dict(lon=(25, 180), lat=(-12, 80)),
-        'Europe': dict(lon=(-25, 45), lat=(34, 72)),
-        'North America': dict(lon=(-170, -50), lat=(5, 85)),
-        'South America': dict(lon=(-85, -30), lat=(-60, 15)),
+        'Africa': dict(lon=(-20, 55), lat=(-36, 38)),
+        'Asia': dict(lon=(25, 180), lat=(-12, 78)),
+        'Europe': dict(lon=(-13, 43), lat=(34, 72)),
+        'North America': dict(lon=(-170, -50), lat=(5, 82)),
+        'South America': dict(lon=(-83, -32), lat=(-58, 14)),
+    }
+
+    REGION_HEIGHTS = {
+        'World': 780,
+        'Africa': 900,
+        'Asia': 760,
+        'Europe': 720,
+        'North America': 760,
+        'South America': 900,
     }
 
     REGION_OVERRIDES = {
@@ -1112,42 +1121,116 @@ with tab_map:
         ))
 
     # ── Adaptive country labels ──────────────────────────────────────────────
-    # A world map cannot legibly carry every country name at once. Keep every
-    # country polygon visible, but use a clean default labelling rule:
-    #   • World: label defaulting countries >= US$1bn; append values >= US$10bn.
-    #   • Regional extracts: label every country in the region; append values
-    #     for defaults >= US$10bn.
-    # This avoids the previous duplicate name + value text layers.
+    # Regional maps show every country, but crowded countries are nudged away
+    # from their geographic centroids and long names are shortened/wrapped.
+    # This mimics normal cartographic label placement and keeps the map readable.
+    SHORT_LABELS = {
+        'United Kingdom': 'UK',
+        'United States': 'USA',
+        'Central African Republic': 'CENTRAL AFRICAN<br>REPUBLIC',
+        'Democratic Republic Of The Congo': 'DR CONGO',
+        'Congo [Drc]': 'DR CONGO',
+        'Congo [Republic]': 'CONGO',
+        'Bosnia And Herzegovina': 'BOSNIA &<br>HERZ.',
+        'North Macedonia': 'N. MACEDONIA',
+        'Papua New Guinea': 'PAPUA NEW<br>GUINEA',
+        'Equatorial Guinea': 'EQUATORIAL<br>GUINEA',
+        'Guinea-Bissau': 'GUINEA-<br>BISSAU',
+        'South Africa': 'SOUTH AFRICA',
+        'South Sudan': 'SOUTH SUDAN',
+        'Saudi Arabia': 'SAUDI ARABIA',
+        'North Korea': 'NORTH KOREA',
+        'South Korea': 'SOUTH KOREA',
+        'New Zealand': 'NEW ZEALAND',
+    }
+
+    # Manual (longitude, latitude) label offsets for dense areas.
+    LABEL_OFFSETS = {
+        'Africa': {
+            'GMB': (-2.5, 0.5), 'GNB': (-2.3, -0.7), 'SLE': (-1.6, -0.8),
+            'LBR': (-1.4, -1.0), 'TGO': (0.0, -1.2), 'BEN': (0.8, 1.0),
+            'RWA': (1.4, 0.5), 'BDI': (1.5, -0.8), 'UGA': (0.8, 1.2),
+            'MWI': (1.1, -0.4), 'SWZ': (1.0, -0.8), 'LSO': (0.0, -1.4),
+            'DJI': (1.4, 0.4), 'ERI': (0.7, 1.0),
+        },
+        'Europe': {
+            'BEL': (-1.7, 0.7), 'NLD': (0.0, 1.3), 'LUX': (1.3, -0.4),
+            'CHE': (-1.1, -0.8), 'AUT': (1.0, 0.3), 'SVN': (-0.8, -0.7),
+            'HRV': (1.0, -0.5), 'BIH': (1.5, 0.2), 'MNE': (0.5, -0.8),
+            'SRB': (1.2, 0.4), 'MKD': (0.8, -0.9), 'ALB': (-0.6, -0.7),
+            'SVK': (0.7, 0.7), 'CZE': (-0.5, 0.8), 'MDA': (1.1, 0.3),
+        },
+        'Asia': {
+            'LBN': (-1.5, 0.7), 'ISR': (-1.5, -0.5), 'PSE': (1.5, -0.7),
+            'JOR': (1.5, 0.4), 'KWT': (1.3, 0.8), 'QAT': (1.4, -0.4),
+            'BHR': (1.4, 0.5), 'SGP': (1.5, -0.8), 'BRN': (1.5, 0.5),
+        },
+        'North America': {
+            'SLV': (-1.5, -0.6), 'BLZ': (-1.0, 0.8), 'JAM': (0.0, -1.0),
+            'HTI': (-0.8, 0.8), 'DOM': (1.0, 0.4), 'PRI': (1.0, -0.6),
+        },
+        'South America': {
+            'URY': (1.3, -0.5), 'PRY': (1.0, 0.8), 'ECU': (-1.0, 0.5),
+            'GUY': (1.0, 0.7), 'SUR': (1.0, -0.5),
+        },
+    }
+
+    REGION_LABEL_SIZE = {
+        'World': 7.5,
+        'Africa': 9,
+        'Asia': 8,
+        'Europe': 7,
+        'North America': 8,
+        'South America': 9,
+    }
+
+    def format_country_label(row):
+        country = row['country']
+        name = SHORT_LABELS.get(country, country.upper())
+
+        # Wrap long labels that do not already have an explicit line break.
+        if '<br>' not in name and len(name) > 15:
+            words = name.split()
+            if len(words) >= 2:
+                mid = len(words) // 2
+                name = ' '.join(words[:mid]) + '<br>' + ' '.join(words[mid:])
+
+        # Keep debt values for major defaults only so smaller labels stay compact.
+        if pd.notna(row['value']) and row['value'] >= 10000:
+            return f"<b>{name}</b><br>${row['value']/1e3:,.1f}B"
+        return name
+
     if not view_df.empty:
         if region == 'World':
+            # Selective labels on the world view; every country remains visible.
             label_df = view_df[view_df['value'].fillna(0) >= 1000].copy()
-            label_size = 7.5
-            major_threshold = 10000
         else:
+            # Regional extracts show every country name.
             label_df = view_df.copy()
-            label_size = 9
-            major_threshold = 10000
 
         if not label_df.empty:
-            def make_map_label(row):
-                name = row['label']
-                value = row['value']
-                if pd.notna(value) and value >= major_threshold:
-                    return f"<b>{name}</b><br>${value/1e3:,.1f}B"
-                return name
+            label_df['plot_lon'] = label_df['lon']
+            label_df['plot_lat'] = label_df['lat']
 
-            label_df['map_text'] = label_df.apply(make_map_label, axis=1)
+            region_offsets = LABEL_OFFSETS.get(region, {})
+            for idx, row in label_df.iterrows():
+                if row['code'] in region_offsets:
+                    dx, dy = region_offsets[row['code']]
+                    label_df.at[idx, 'plot_lon'] += dx
+                    label_df.at[idx, 'plot_lat'] += dy
+
+            label_df['map_text'] = label_df.apply(format_country_label, axis=1)
 
             fig_map.add_trace(go.Scattergeo(
-                lon=label_df['lon'],
-                lat=label_df['lat'],
+                lon=label_df['plot_lon'],
+                lat=label_df['plot_lat'],
                 text=label_df['map_text'],
                 mode='text',
                 showlegend=False,
                 hoverinfo='skip',
                 textfont=dict(
                     color='#333333',
-                    size=label_size,
+                    size=REGION_LABEL_SIZE.get(region, 8),
                     family='Arial'
                 )
             ))
@@ -1173,109 +1256,3 @@ with tab_map:
         showlakes=True,
         lakecolor='#a9c7e8',
         showcountries=True,
-        countrycolor='#8c8c8c',
-        countrywidth=0.75,
-        bgcolor='white',
-        projection_type='natural earth' if region == 'World' else 'mercator',
-    )
-
-    if region == 'World':
-        geo_kw.update(lataxis_range=[-58, 85])
-    else:
-        b = REGION_BOUNDS[region]
-        geo_kw.update(
-            lonaxis=dict(range=list(b['lon']), showgrid=False),
-            lataxis=dict(range=list(b['lat']), showgrid=False),
-        )
-
-    # For regional extracts, put the year/title inside the legend box in the
-    # lower-left corner, like the supplied reference image.
-    legend_title = (
-        f"<b>{map_year} total debt in default<br>by country (US$ millions)</b>"
-        if region != 'World'
-        else '<b>US$ millions</b>'
-    )
-
-    fig_map.update_layout(
-        height=760 if region != 'World' else 780,
-        geo=geo_kw,
-        title=(
-            None if region != 'World' else
-            dict(text=f'Total debt in default by country, {map_year} (US$ millions)',
-                 x=0.01, font=dict(size=14, color='#222'))
-        ),
-        legend=dict(
-            title=dict(text=legend_title, font=dict(size=13, color='#111111')),
-            x=0.02,
-            y=0.03,
-            xanchor='left',
-            yanchor='bottom',
-            bgcolor='rgba(255,255,255,0.95)',
-            bordercolor='#c7c7c7',
-            borderwidth=1,
-            font=dict(size=11, color='#111111'),
-            itemsizing='constant',
-            traceorder='normal',
-        ),
-        margin=dict(l=0, r=0, t=20 if region != 'World' else 45, b=0),
-        paper_bgcolor='white',
-    )
-
-    show_chart(
-        fig_map,
-        f"debt_default_map_{region.lower().replace(' ', '_')}_{map_year}.html",
-        "cmap"
-    )
-
-    # ── Regional/country extract ────────────────────────────────────────────
-    st.divider()
-    st.markdown(f"### {region} country order — {map_year}")
-
-    table_df = view_df.copy()
-    table_df['Debt in default (US$M)'] = table_df['value']
-    table_df['Debt in default (US$B)'] = table_df['value'] / 1e3
-    table_df['Order'] = table_df['rank']
-    table_df['Band'] = table_df['band'].fillna('No default / no data')
-
-    table_df['_sort_group'] = np.where(table_df['rank'].notna(), 0, 1)
-    table_df['_sort_rank'] = table_df['rank'].fillna(10_000)
-    table_df = table_df.sort_values(
-        ['_sort_group', '_sort_rank', 'country'], ascending=[True, True, True]
-    )
-
-    display_df = table_df[[
-        'Order', 'country', 'code', 'Debt in default (US$M)',
-        'Debt in default (US$B)', 'Band'
-    ]].rename(columns={'country': 'Country', 'code': 'ISO3'})
-
-    display_df['Order'] = display_df['Order'].apply(
-        lambda x: '' if pd.isna(x) else int(x)
-    )
-
-    m1, m2, m3 = st.columns(3)
-    m1.metric("Countries shown", f"{len(view_df):,}")
-    m2.metric("Countries with debt in default", f"{len(positive):,}")
-    m3.metric("Debt in default", f"${positive['value'].sum()/1e3:,.1f}B")
-
-    st.dataframe(
-        display_df,
-        use_container_width=True,
-        hide_index=True,
-        column_config={
-            'Order': st.column_config.NumberColumn('Order', format='%d'),
-            'Debt in default (US$M)': st.column_config.NumberColumn(format='$%,.0f'),
-            'Debt in default (US$B)': st.column_config.NumberColumn(format='$%,.1f'),
-        },
-        height=min(700, 38 + 35 * min(len(display_df), 18))
-    )
-
-    st.caption(
-        f"{len(view_df)} countries shown in {region} · "
-        f"{len(positive)} have debt in default in {map_year}. "
-        "Order ranks defaulting countries from highest to lowest debt in default."
-    )
-
-# ── Footer ───────────────────────────────────────────────────────────────────
-st.divider()
-st.caption(f"Source: BoC–BoE Sovereign Default Database · Last update: July 22, 2026 · "
-           f"Last observation: {LAST_OBS} · Built with Streamlit + Plotly")
