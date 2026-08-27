@@ -3,4 +3,4 @@ pandas
 numpy
 plotly
 openpyxl
-kaleido==1
+kaleido==0.2.1
