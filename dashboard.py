@@ -1200,49 +1200,67 @@ with tab_map:
             return f"<b>{name}</b><br>${row['value']/1e3:,.1f}B"
         return name
 
-    if not view_df.empty:
-        if region == 'World':
-            # Selective labels on the world view; every country remains visible.
-            label_df = view_df[view_df['value'].fillna(0) >= 1000].copy()
-        else:
-            # Regional extracts show every country name.
-            label_df = view_df.copy()
-
-        if not label_df.empty:
-            label_df['plot_lon'] = label_df['lon']
-            label_df['plot_lat'] = label_df['lat']
-
-            region_offsets = LABEL_OFFSETS.get(region, {})
-            for idx, row in label_df.iterrows():
-                if row['code'] in region_offsets:
-                    dx, dy = region_offsets[row['code']]
-                    label_df.at[idx, 'plot_lon'] += dx
-                    label_df.at[idx, 'plot_lat'] += dy
-
-            label_df['map_text'] = label_df.apply(format_country_label, axis=1)
-
-            fig_map.add_trace(go.Scattergeo(
-                lon=label_df['plot_lon'],
-                lat=label_df['plot_lat'],
-                text=label_df['map_text'],
-                mode='text',
-                showlegend=False,
-                hoverinfo='skip',
-                textfont=dict(
-                    color='#333333',
-                    size=REGION_LABEL_SIZE.get(region, 8),
-                    family='Arial'
-                )
-            ))
-
-    # A short explanation avoids implying that unlabelled world-map countries
-    # are missing from the data. Exact values/order remain in the table below.
     if region == 'World':
+        # World view: show continent names only. This keeps the global map clean and
+        # readable while the choropleth still shows every country's debt band.
+        CONTINENT_LABELS = pd.DataFrame([
+            {'name': '<b>NORTH<br>AMERICA</b>', 'lat': 48, 'lon': -108},
+            {'name': '<b>SOUTH<br>AMERICA</b>', 'lat': -21, 'lon': -61},
+            {'name': '<b>EUROPE</b>',          'lat': 54, 'lon': 16},
+            {'name': '<b>AFRICA</b>',          'lat': 3,  'lon': 20},
+            {'name': '<b>ASIA</b>',            'lat': 39, 'lon': 91},
+            {'name': '<b>OCEANIA</b>',         'lat': -25, 'lon': 135},
+        ])
+
+        fig_map.add_trace(go.Scattergeo(
+            lon=CONTINENT_LABELS['lon'],
+            lat=CONTINENT_LABELS['lat'],
+            text=CONTINENT_LABELS['name'],
+            mode='text',
+            showlegend=False,
+            hoverinfo='skip',
+            textfont=dict(
+                color='#243447',
+                size=15,
+                family='Arial'
+            )
+        ))
+
         st.caption(
-            "World view uses selective labels for readability: country names are shown "
-            "for defaults of US$1bn or more, with values added at US$10bn or more. "
-            "All mapped countries remain visible and are listed in the table below."
+            "World view shows continent names only for readability. "
+            "Country-level debt bands remain visible; select a regional extract "
+            "to display individual country names."
         )
+
+    elif not view_df.empty:
+        # Regional extracts show every country name, with offsets for crowded areas.
+        label_df = view_df.copy()
+
+        label_df['plot_lon'] = label_df['lon']
+        label_df['plot_lat'] = label_df['lat']
+
+        region_offsets = LABEL_OFFSETS.get(region, {})
+        for idx, row in label_df.iterrows():
+            if row['code'] in region_offsets:
+                dx, dy = region_offsets[row['code']]
+                label_df.at[idx, 'plot_lon'] += dx
+                label_df.at[idx, 'plot_lat'] += dy
+
+        label_df['map_text'] = label_df.apply(format_country_label, axis=1)
+
+        fig_map.add_trace(go.Scattergeo(
+            lon=label_df['plot_lon'],
+            lat=label_df['plot_lat'],
+            text=label_df['map_text'],
+            mode='text',
+            showlegend=False,
+            hoverinfo='skip',
+            textfont=dict(
+                color='#333333',
+                size=REGION_LABEL_SIZE.get(region, 8),
+                family='Arial'
+            )
+        ))
 
     geo_kw = dict(
         showframe=False,
