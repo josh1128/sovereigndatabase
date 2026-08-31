@@ -1,0 +1,24 @@
+name: Combine Latin America and Caribbean
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/combine-latin-america-caribbean.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python .github/scripts/combine_latin_america_caribbean.py
+      - run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add dashboard.py
+          git commit -m "Combine Latin America and Caribbean map"
+          git push
