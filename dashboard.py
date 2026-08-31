@@ -458,6 +458,15 @@ def figure_with_note(fig, note, on_white=False):
         legend=dict(font=dict(color=INK)),
         title=dict(font=dict(color=INK)),
     )
+
+    # Geo/map exports should keep the full canvas visually continuous with
+    # the ocean. Plotly can otherwise leave white letterboxing around Mercator
+    # regional maps when rendered at a different export aspect ratio.
+    if is_geo:
+        OCEAN = "#a9c7e8"
+        out.update_layout(paper_bgcolor=OCEAN)
+        out.update_geos(bgcolor=OCEAN, oceancolor=OCEAN, showocean=True)
+
     if not is_geo:
         out.update_xaxes(gridcolor=GRID, zerolinecolor=GRID, linecolor=LINE,
                          tickcolor=LINE, tickfont=dict(color=INK),
@@ -589,9 +598,50 @@ def show_chart(fig, filename, key):
                 )
 
             try:
+                is_geo_export = bool(export_fig.data) and export_fig.data[0].type in (
+                    "choropleth", "scattergeo"
+                )
+
+                export_width = 1600
+                export_height = 900
+
+                if is_geo_export:
+                    export_height = int(export_fig.layout.height or 900)
+
+                    # figure_with_note() increases the bottom margin. Preserve
+                    # the map's original drawable height by adding that margin
+                    # increase to the final PNG height instead of squeezing the map.
+                    original_bottom = int(fig.layout.margin.b or 0)
+                    export_bottom = int(export_fig.layout.margin.b or 0)
+                    export_height += max(0, export_bottom - original_bottom)
+
+                    # Re-pin the legend after final export sizing. Regional maps
+                    # need a higher y position than the rectangular World map.
+                    projection_type = str(
+                        getattr(
+                            getattr(export_fig.layout.geo, 'projection', None),
+                            'type',
+                            ''
+                        ) or ''
+                    ).lower()
+                    is_world_export = projection_type == 'equirectangular'
+                    export_fig.update_layout(
+                        legend=dict(
+                            x=0.02 if is_world_export else 0.055,
+                            y=0.055 if is_world_export else 0.18,
+                            xanchor='left',
+                            yanchor='bottom',
+                        )
+                    )
+
                 st.download_button(
                     f"⬇️ Download PNG ({scale}x)",
-                    data=plotly_png_bytes(export_fig.to_json(), scale=scale),
+                    data=plotly_png_bytes(
+                        export_fig.to_json(),
+                        scale=scale,
+                        width=export_width,
+                        height=export_height,
+                    ),
                     file_name=f"{base_name}.png",
                     mime="image/png",
                     key=f"download_png_{key}",
