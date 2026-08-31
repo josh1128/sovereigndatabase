@@ -608,6 +608,46 @@ def show_chart(fig, filename, key):
                 if is_geo_export:
                     export_height = int(export_fig.layout.height or 900)
 
+                    # PNG-only typography boost. Kaleido's scale parameter adds
+                    # pixels but does not make labels larger relative to the map.
+                    # Increase geo text and legend typography before rendering so
+                    # downloaded maps remain readable when pasted into Word/PPT.
+                    projection_type = str(
+                        getattr(
+                            getattr(export_fig.layout.geo, 'projection', None),
+                            'type',
+                            ''
+                        ) or ''
+                    ).lower()
+                    is_world_export = projection_type == 'equirectangular'
+
+                    for trace in export_fig.data:
+                        if getattr(trace, 'type', None) != 'scattergeo':
+                            continue
+
+                        current_size = getattr(
+                            getattr(trace, 'textfont', None), 'size', None
+                        ) or 12
+
+                        # World continent labels start larger and should be very
+                        # prominent; regional country labels get a ~60% boost.
+                        if is_world_export:
+                            new_size = max(28, int(round(float(current_size) * 1.55)))
+                        else:
+                            new_size = max(17, int(round(float(current_size) * 1.65)))
+
+                        trace.textfont.size = new_size
+
+                    export_fig.update_layout(
+                        font=dict(size=16),
+                        legend=dict(
+                            title=dict(
+                                font=dict(size=18 if is_world_export else 20)
+                            ),
+                            font=dict(size=15 if is_world_export else 17),
+                        ),
+                    )
+
                     # figure_with_note() increases the bottom margin. Preserve
                     # the map's original drawable height by adding that margin
                     # increase to the final PNG height instead of squeezing the map.
@@ -617,14 +657,6 @@ def show_chart(fig, filename, key):
 
                     # Re-pin the legend after final export sizing. Regional maps
                     # need a higher y position than the rectangular World map.
-                    projection_type = str(
-                        getattr(
-                            getattr(export_fig.layout.geo, 'projection', None),
-                            'type',
-                            ''
-                        ) or ''
-                    ).lower()
-                    is_world_export = projection_type == 'equirectangular'
                     export_fig.update_layout(
                         legend=dict(
                             x=0.02 if is_world_export else 0.055,
