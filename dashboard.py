@@ -916,7 +916,7 @@ with tab_map:
             mode='text',
             showlegend=False,
             hoverinfo='skip',
-            textfont=dict(color='#2f2f2f',size=12,family='Arial'),
+            textfont=dict(color='#2f2f2f',size=18,family='Arial Black'),
         ))
     elif not view_df.empty:
         label_df = view_df.copy()
