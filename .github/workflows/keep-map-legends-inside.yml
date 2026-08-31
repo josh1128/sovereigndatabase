@@ -22,3 +22,5 @@ jobs:
           git add dashboard.py
           git commit -m "Keep regional map legends inside map area"
           git push
+
+# trigger
