@@ -1,0 +1,185 @@
+name: Apply world map reference style
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/apply-world-map-reference.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch-world-map:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Update world map styling
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          p = Path('dashboard.py')
+          s = p.read_text(encoding='utf-8')
+
+          def rep(old, new, label):
+              global s
+              n = s.count(old)
+              if n != 1:
+                  raise SystemExit(f'{label}: expected 1 match, found {n}')
+              s = s.replace(old, new, 1)
+
+          rep(
+              "    REGION_HEIGHTS = {'World':860,'Africa':980,'Asia':880,'Europe':840,'North America':900,'South America':980}\n",
+              "    REGION_HEIGHTS = {'World':650,'Africa':980,'Asia':880,'Europe':840,'North America':900,'South America':980}\n",
+              'world height'
+          )
+
+          old_titles = """    FIGURE_TITLES = {
+        'World': 'Figure A-1: Debt in default, World',
+        'Europe': 'Figure A-2: Debt in default, Europe',
+        'Asia': 'Figure A-3: Debt in default, Asia Pacific',
+        'North America': 'Figure A-4: Debt in default, North America and the Caribbean',
+        'South America': 'Figure A-5: Debt in default, Latin America',
+        'Africa': 'Figure A-6: Debt in default, Africa',
+    }
+
+"""
+          new_titles = """    FIGURE_TITLES = {
+        'World': 'Figure A-1: Global debt in default',
+        'Europe': 'Figure A-2: Debt in default, Europe',
+        'Asia': 'Figure A-3: Debt in default, Asia Pacific',
+        'North America': 'Figure A-4: Debt in default, North America and the Caribbean',
+        'South America': 'Figure A-5: Debt in default, Latin America',
+        'Africa': 'Figure A-6: Debt in default, Africa',
+    }
+
+    # Match the published appendix: the World figure heading sits above the map,
+    # with the figure number in blue and the title in black.
+    if region == 'World':
+        st.markdown(
+            \"<div style='font-family:Arial; font-size:16px; margin:4px 0 2px 0;'>\"
+            \"<span style='color:#1b6f8a;'>Figure A-1:</span> \"
+            \"<span style='color:#111111; font-weight:600;'>Global debt in default</span>\"
+            \"</div>\",
+            unsafe_allow_html=True,
+        )
+
+"""
+          rep(old_titles, new_titles, 'figure titles')
+
+          old_world_labels = """        CONTINENT_LABELS = pd.DataFrame([
+            {'name':'<b>NORTH<br>AMERICA</b>','lat':48,'lon':-108},
+            {'name':'<b>SOUTH<br>AMERICA</b>','lat':-21,'lon':-61},
+            {'name':'<b>EUROPE</b>','lat':54,'lon':16},
+            {'name':'<b>AFRICA</b>','lat':3,'lon':20},
+            {'name':'<b>ASIA</b>','lat':39,'lon':91},
+            {'name':'<b>OCEANIA</b>','lat':-25,'lon':135},
+        ])
+        fig_map.add_trace(go.Scattergeo(lon=CONTINENT_LABELS['lon'],lat=CONTINENT_LABELS['lat'],text=CONTINENT_LABELS['name'],mode='text',showlegend=False,hoverinfo='skip',textfont=dict(color='#243447',size=20,family='Arial')))
+"""
+          new_world_labels = """        CONTINENT_LABELS = pd.DataFrame([
+            {'name':'NORTH AMERICA','lat':47,'lon':-107},
+            {'name':'SOUTH AMERICA','lat':-17,'lon':-61},
+            {'name':'EUROPE','lat':51,'lon':15},
+            {'name':'AFRICA','lat':3,'lon':20},
+            {'name':'ASIA','lat':42,'lon':92},
+            {'name':'AUSTRALIA','lat':-27,'lon':134},
+        ])
+        fig_map.add_trace(go.Scattergeo(
+            lon=CONTINENT_LABELS['lon'],
+            lat=CONTINENT_LABELS['lat'],
+            text=CONTINENT_LABELS['name'],
+            mode='text',
+            showlegend=False,
+            hoverinfo='skip',
+            textfont=dict(color='#2f2f2f',size=12,family='Arial'),
+        ))
+"""
+          rep(old_world_labels, new_world_labels, 'world continent labels')
+
+          rep(
+              "projection_type='natural earth' if region == 'World' else 'mercator'",
+              "projection_type='equirectangular' if region == 'World' else 'mercator'",
+              'world projection'
+          )
+
+          old_geo = """    if region == 'World':
+        geo_kw.update(lataxis_range=[-58,85])
+    else:
+"""
+          new_geo = """    if region == 'World':
+        # Published appendix uses a rectangular world frame rather than the
+        # rounded Natural Earth presentation.
+        geo_kw.update(
+            lonaxis=dict(range=[-180,180],showgrid=False),
+            lataxis=dict(range=[-60,85],showgrid=False),
+        )
+    else:
+"""
+          rep(old_geo, new_geo, 'world geo range')
+
+          rep(
+              "    legend_title = f\"<b>{map_year} total debt in default<br>by country (US$ millions)</b>\" if region != 'World' else '<b>US$ millions</b>'\n",
+              "    legend_title = f\"<b>{map_year} total debt in default<br>by country (US$ millions)</b>\"\n",
+              'legend title'
+          )
+
+          old_layout = "    fig_map.update_layout(height=REGION_HEIGHTS.get(region,860),geo=geo_kw,title=dict(text=FIGURE_TITLES.get(region, f'Debt in default, {region}'),x=0.01,xanchor='left',font=dict(size=18,color='#1b6f8a')),legend=dict(title=dict(text=legend_title,font=dict(size=15,color='#111111')),x=0.02,y=0.03,xanchor='left',yanchor='bottom',bgcolor='rgba(255,255,255,0.96)',bordercolor='#b8b8b8',borderwidth=1,font=dict(size=13,color='#111111'),itemsizing='constant',traceorder='normal'),margin=dict(l=0,r=0,t=70,b=0),paper_bgcolor='white',font=dict(family='Arial',size=13,color='#222222'))\n"
+          new_layout = """    # World styling is intentionally flatter and more compact to match the
+    # appendix reference. Regional maps retain the larger presentation.
+    is_world = region == 'World'
+    fig_map.update_layout(
+        height=REGION_HEIGHTS.get(region,860),
+        geo=geo_kw,
+        title=(
+            None if is_world else
+            dict(
+                text=FIGURE_TITLES.get(region, f'Debt in default, {region}'),
+                x=0.01,
+                xanchor='left',
+                font=dict(size=18,color='#1b6f8a'),
+            )
+        ),
+        legend=dict(
+            title=dict(
+                text=legend_title,
+                font=dict(size=12 if is_world else 15,color='#111111'),
+            ),
+            x=0.015 if is_world else 0.02,
+            y=0.025 if is_world else 0.03,
+            xanchor='left',
+            yanchor='bottom',
+            bgcolor='rgba(255,255,255,0.97)',
+            bordercolor='#b8b8b8',
+            borderwidth=1,
+            font=dict(size=10 if is_world else 13,color='#111111'),
+            itemsizing='constant',
+            traceorder='normal',
+        ),
+        margin=dict(l=0,r=0,t=8 if is_world else 70,b=0),
+        paper_bgcolor='white',
+        font=dict(family='Arial',size=11 if is_world else 13,color='#222222'),
+    )
+"""
+          rep(old_layout, new_layout, 'map layout')
+
+          compile(s, 'dashboard.py', 'exec')
+          p.write_text(s, encoding='utf-8')
+          print('World map reference styling applied and syntax check passed.')
+          PY
+
+      - name: Commit dashboard update
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add dashboard.py
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Match world map to appendix reference"
+            git push
+          fi
