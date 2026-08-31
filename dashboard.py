@@ -471,6 +471,23 @@ def figure_with_note(fig, note, on_white=False):
         if ann.font is None or ann.font.color is None:
             ann.font.color = INK
 
+    # Keep map legends inside the blue shaded geography in exported files.
+    # Regional maps use Mercator; the World view uses equirectangular.
+    if is_geo and out.layout.legend is not None:
+        projection_type = str(
+            getattr(getattr(out.layout.geo, 'projection', None), 'type', '') or ''
+        ).lower()
+        is_world_geo = projection_type == 'equirectangular'
+
+        out.update_layout(
+            legend=dict(
+                x=0.02 if is_world_geo else 0.055,
+                y=0.055 if is_world_geo else 0.18,
+                xanchor='left',
+                yanchor='bottom',
+            )
+        )
+
     note = (note or "").strip()
     if not note:
         return out
@@ -1106,8 +1123,8 @@ with tab_map:
                 text=legend_title,
                 font=dict(size=12 if is_world else 15,color='#111111'),
             ),
-            x=0.015 if is_world else 0.02,
-            y=0.025 if is_world else 0.03,
+            x=0.02 if is_world else 0.055,
+            y=0.055 if is_world else 0.18,
             xanchor='left',
             yanchor='bottom',
             bgcolor='rgba(255,255,255,0.97)',
