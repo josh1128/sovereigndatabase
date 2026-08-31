@@ -1,0 +1,24 @@
+name: Enlarge geo PNG text
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/enlarge-geo-png-text.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python .github/scripts/enlarge_geo_png_text.py
+      - run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add dashboard.py
+          git commit -m "Enlarge map text in PNG exports"
+          git push
