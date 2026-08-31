@@ -783,7 +783,7 @@ with tab_c:
 
 # ═══ MAP: Global debt in default ═════════════════════════════════════════════
 with tab_map:
-    st.subheader("Figure A-1: Global debt in default")
+    # MAP_FORMAT_V2: reference-style regional maps with larger labels.
 
     MAP_BINS = [0,100,1000,10000,25000,50000,np.inf]
     MAP_LABELS = ['0 - 100','100 - 1,000','1,000 - 10,000','10,000 - 25,000','25,000 - 50,000','50,000+']
@@ -806,7 +806,7 @@ with tab_map:
         'South America': dict(lon=(-83,-32),lat=(-58,14)),
     }
 
-    REGION_HEIGHTS = {'World':780,'Africa':900,'Asia':760,'Europe':720,'North America':820,'South America':900}
+    REGION_HEIGHTS = {'World':860,'Africa':980,'Asia':880,'Europe':840,'North America':900,'South America':980}
 
     REGION_OVERRIDES = {
         'Europe': {'GBR','IRL','ISL','PRT','ESP','FRA','BEL','NLD','LUX','DEU','CHE','AUT','ITA','MLT','DNK','NOR','SWE','FIN','EST','LVA','LTU','POL','CZE','SVK','HUN','SVN','HRV','BIH','SRB','MNE','MKD','ALB','GRC','BGR','ROU','MDA','UKR','BLR'},
@@ -832,7 +832,20 @@ with tab_map:
     with c2:
         region = st.selectbox("Regional extract",list(REGION_BOUNDS),index=0,key="map_region")
 
-    st.caption("Country polygons are always shown. Regional extracts suppress tiny or crowded labels; hidden country names remain available through hover and the table below.")
+    FIGURE_TITLES = {
+        'World': 'Figure A-1: Debt in default, World',
+        'Europe': 'Figure A-2: Debt in default, Europe',
+        'Asia': 'Figure A-3: Debt in default, Asia Pacific',
+        'North America': 'Figure A-4: Debt in default, North America and the Caribbean',
+        'South America': 'Figure A-5: Debt in default, Latin America',
+        'Africa': 'Figure A-6: Debt in default, Africa',
+    }
+
+    st.caption(
+        "Country polygons are always shown. Regional extracts use larger country "
+        "labels while suppressing tiny or crowded names. Hidden country names "
+        "remain available through hover and the table below."
+    )
 
     rows = []
     for name in df_countries.index:
@@ -870,10 +883,10 @@ with tab_map:
         'South America': {'URY':(1.3,-0.5),'PRY':(1.0,0.8),'ECU':(-1.0,0.5),'GUY':(1.0,0.7),'SUR':(1.0,-0.5)},
     }
 
-    REGION_LABEL_SIZE = {'World':7.5,'Africa':9,'Asia':8,'Europe':7,'North America':9,'South America':9}
+    REGION_LABEL_SIZE = {'World':10,'Africa':12,'Asia':11,'Europe':10,'North America':11,'South America':12}
     REGION_HIDE_LABELS = {'North America': {'ABW','AIA','ATG','BHS','BRB','CUW','DMA','GRD','KNA','LCA','PRI','SXM','TTO','VCT'}, 'South America': set()}
     REGION_ANCHOR_LABELS = {'North America': {'CAN','USA','MEX'}, 'South America': {'BRA','ARG','CHL','COL','PER'}, 'Europe': {'GBR','FRA','DEU','ESP','ITA'}, 'Africa': {'ZAF','NGA','EGY','DZA','ETH'}, 'Asia': {'CHN','IND','JPN','IDN','SAU'}}
-    REGION_MAX_LABELS = {'North America':13,'South America':12,'Europe':18,'Africa':24,'Asia':22}
+    REGION_MAX_LABELS = {'North America':14,'South America':12,'Europe':18,'Africa':22,'Asia':18}
 
     def format_country_label(row):
         country = row['country']
@@ -896,7 +909,7 @@ with tab_map:
             {'name':'<b>ASIA</b>','lat':39,'lon':91},
             {'name':'<b>OCEANIA</b>','lat':-25,'lon':135},
         ])
-        fig_map.add_trace(go.Scattergeo(lon=CONTINENT_LABELS['lon'],lat=CONTINENT_LABELS['lat'],text=CONTINENT_LABELS['name'],mode='text',showlegend=False,hoverinfo='skip',textfont=dict(color='#243447',size=15,family='Arial')))
+        fig_map.add_trace(go.Scattergeo(lon=CONTINENT_LABELS['lon'],lat=CONTINENT_LABELS['lat'],text=CONTINENT_LABELS['name'],mode='text',showlegend=False,hoverinfo='skip',textfont=dict(color='#243447',size=20,family='Arial')))
     elif not view_df.empty:
         label_df = view_df.copy()
         hidden_codes = REGION_HIDE_LABELS.get(region,set())
@@ -924,7 +937,7 @@ with tab_map:
                 label_df.at[idx,'plot_lat'] += dy
         label_df['map_text'] = label_df.apply(format_country_label,axis=1)
         if not label_df.empty:
-            fig_map.add_trace(go.Scattergeo(lon=label_df['plot_lon'],lat=label_df['plot_lat'],text=label_df['map_text'],mode='text',showlegend=False,hoverinfo='skip',textfont=dict(color='#333333',size=REGION_LABEL_SIZE.get(region,8),family='Arial')))
+            fig_map.add_trace(go.Scattergeo(lon=label_df['plot_lon'],lat=label_df['plot_lat'],text=label_df['map_text'],mode='text',showlegend=False,hoverinfo='skip',textfont=dict(color='#333333',size=REGION_LABEL_SIZE.get(region,11),family='Arial')))
 
     geo_kw = dict(showframe=False,showcoastlines=True,coastlinecolor='#8c8c8c',coastlinewidth=0.75,showland=True,landcolor='#f2f2f2',showocean=True,oceancolor='#a9c7e8',showlakes=True,lakecolor='#a9c7e8',showcountries=True,countrycolor='#8c8c8c',countrywidth=0.75,bgcolor='white',projection_type='natural earth' if region == 'World' else 'mercator')
     if region == 'World':
@@ -934,7 +947,7 @@ with tab_map:
         geo_kw.update(lonaxis=dict(range=list(b['lon']),showgrid=False),lataxis=dict(range=list(b['lat']),showgrid=False))
 
     legend_title = f"<b>{map_year} total debt in default<br>by country (US$ millions)</b>" if region != 'World' else '<b>US$ millions</b>'
-    fig_map.update_layout(height=REGION_HEIGHTS.get(region,780),geo=geo_kw,title=None if region != 'World' else dict(text=f'Total debt in default by country, {map_year} (US$ millions)',x=0.01,font=dict(size=14,color='#222')),legend=dict(title=dict(text=legend_title,font=dict(size=13,color='#111111')),x=0.02,y=0.03,xanchor='left',yanchor='bottom',bgcolor='rgba(255,255,255,0.95)',bordercolor='#c7c7c7',borderwidth=1,font=dict(size=11,color='#111111'),itemsizing='constant',traceorder='normal'),margin=dict(l=0,r=0,t=20 if region != 'World' else 45,b=0),paper_bgcolor='white')
+    fig_map.update_layout(height=REGION_HEIGHTS.get(region,860),geo=geo_kw,title=dict(text=FIGURE_TITLES.get(region, f'Debt in default, {region}'),x=0.01,xanchor='left',font=dict(size=18,color='#1b6f8a')),legend=dict(title=dict(text=legend_title,font=dict(size=15,color='#111111')),x=0.02,y=0.03,xanchor='left',yanchor='bottom',bgcolor='rgba(255,255,255,0.96)',bordercolor='#b8b8b8',borderwidth=1,font=dict(size=13,color='#111111'),itemsizing='constant',traceorder='normal'),margin=dict(l=0,r=0,t=70,b=0),paper_bgcolor='white',font=dict(family='Arial',size=13,color='#222222'))
     show_chart(fig_map,f"debt_default_map_{region.lower().replace(' ','_')}_{map_year}.html","cmap")
 
     st.divider()
