@@ -901,24 +901,48 @@ with tab_map:
         'Africa': dict(lon=(-20,55),lat=(-36,38)),
         'Asia': dict(lon=(25,180),lat=(-12,78)),
         'Europe': dict(lon=(-15, 68), lat=(28, 72)),
-        'North America': dict(lon=(-130,-55),lat=(5,55)),
-        'South America': dict(lon=(-83,-32),lat=(-58,14)),
+
+        # Canada and the United States. Mexico, Central America and the
+        # Caribbean are included in the combined Latin America extract below.
+        'North America': dict(lon=(-170,-50),lat=(24,82)),
+
+        # Mexico + Central America + Caribbean + South America.
+        'Latin America & Caribbean': dict(lon=(-118,-32),lat=(-58,33)),
     }
 
-    REGION_HEIGHTS = {'World':650,'Africa':980,'Asia':880,'Europe':900,'North America':900,'South America':980}
+    REGION_HEIGHTS = {
+        'World':650,
+        'Africa':980,
+        'Asia':880,
+        'Europe':900,
+        'North America':900,
+        'Latin America & Caribbean':980,
+    }
 
     REGION_OVERRIDES = {
         'Europe': {'GBR','IRL','ISL','PRT','ESP','FRA','BEL','NLD','LUX','DEU','CHE','AUT','ITA','MLT','DNK','NOR','SWE','FIN','EST','LVA','LTU','POL','CZE','SVK','HUN','SVN','HRV','BIH','SRB','MNE','MKD','ALB','GRC','BGR','ROU','MDA','UKR','BLR'},
         'Asia': {'RUS','TUR','GEO','ARM','AZE','CYP','KAZ'},
-        'North America': {'CAN','USA','MEX','BLZ','GTM','HND','SLV','NIC','CRI','PAN','BHS','CUB','JAM','HTI','DOM','PRI','ABW','AIA','ATG','BRB','CUW','DMA','GRD','KNA','LCA','SXM','TTO','VCT'},
-        'South America': {'ARG','BOL','BRA','CHL','COL','ECU','GUY','PRY','PER','SUR','URY','VEN'},
+
+        # North America is kept as the Canada / United States extract.
+        'North America': {'CAN','USA'},
+
+        # Combined Mexico, Central America, Caribbean and South America extract.
+        'Latin America & Caribbean': {
+            'MEX',
+            'BLZ','GTM','HND','SLV','NIC','CRI','PAN',
+            'BHS','CUB','JAM','HTI','DOM','PRI','ABW','AIA','ATG','BRB','CUW',
+            'DMA','GRD','KNA','LCA','SXM','TTO','VCT',
+            'ARG','BOL','BRA','CHL','COL','ECU','GUY','PRY','PER','SUR','URY','VEN',
+        },
     }
 
     def country_region(code,lat,lon):
-        for rg in ['Europe','Asia','North America','South America']:
+        # Explicit membership takes priority where regional bounding boxes overlap.
+        for rg in ['Europe','Asia','Latin America & Caribbean','North America']:
             if code in REGION_OVERRIDES.get(rg,set()):
                 return rg
-        for rg in ['Africa','South America','North America','Europe','Asia']:
+
+        for rg in ['Africa','Latin America & Caribbean','North America','Europe','Asia']:
             b = REGION_BOUNDS[rg]
             if b['lon'][0] <= lon <= b['lon'][1] and b['lat'][0] <= lat <= b['lat'][1]:
                 return rg
@@ -935,8 +959,8 @@ with tab_map:
         'World': 'Figure A-1: Global debt in default',
         'Europe': 'Figure A-2: Debt in default, Europe',
         'Asia': 'Figure A-3: Debt in default, Asia Pacific',
-        'North America': 'Figure A-4: Debt in default, North America and the Caribbean',
-        'South America': 'Figure A-5: Debt in default, Latin America',
+        'North America': 'Figure A-4: Debt in default, North America',
+        'Latin America & Caribbean': 'Figure A-5: Debt in default, Latin America and the Caribbean',
         'Africa': 'Figure A-6: Debt in default, Africa',
     }
 
@@ -978,14 +1002,49 @@ with tab_map:
         'Africa': {'GMB':(-2.5,0.5),'GNB':(-2.3,-0.7),'SLE':(-1.6,-0.8),'LBR':(-1.4,-1.0),'TGO':(0.0,-1.2),'BEN':(0.8,1.0),'RWA':(1.4,0.5),'BDI':(1.5,-0.8),'UGA':(0.8,1.2),'MWI':(1.1,-0.4),'SWZ':(1.0,-0.8),'LSO':(0.0,-1.4),'DJI':(1.4,0.4),'ERI':(0.7,1.0)},
         'Europe': {'BEL':(-1.7,0.7),'NLD':(0.0,1.3),'LUX':(1.3,-0.4),'CHE':(-1.1,-0.8),'AUT':(1.0,0.3),'SVN':(-0.8,-0.7),'HRV':(1.0,-0.5),'BIH':(1.5,0.2),'MNE':(0.5,-0.8),'SRB':(1.2,0.4),'MKD':(0.8,-0.9),'ALB':(-0.6,-0.7),'SVK':(0.7,0.7),'CZE':(-0.5,0.8),'MDA':(1.1,0.3)},
         'Asia': {'LBN':(-1.5,0.7),'ISR':(-1.5,-0.5),'PSE':(1.5,-0.7),'JOR':(1.5,0.4),'KWT':(1.3,0.8),'QAT':(1.4,-0.4),'BHR':(1.4,0.5),'SGP':(1.5,-0.8),'BRN':(1.5,0.5)},
-        'North America': {'BLZ':(-1.0,0.8),'GTM':(-1.0,0.3),'HND':(0.8,0.9),'SLV':(-1.5,-0.6),'NIC':(0.9,-0.3),'CRI':(-0.8,-0.8),'PAN':(1.2,-0.7),'CUB':(0.0,1.2),'JAM':(0.0,-1.0),'HTI':(-0.8,0.8),'DOM':(1.0,0.4)},
-        'South America': {'URY':(1.3,-0.5),'PRY':(1.0,0.8),'ECU':(-1.0,0.5),'GUY':(1.0,0.7),'SUR':(1.0,-0.5)},
+        'North America': {},
+        'Latin America & Caribbean': {
+            'BLZ':(-1.0,0.8),'GTM':(-1.0,0.3),'HND':(0.8,0.9),
+            'SLV':(-1.5,-0.6),'NIC':(0.9,-0.3),'CRI':(-0.8,-0.8),'PAN':(1.2,-0.7),
+            'CUB':(0.0,1.2),'JAM':(0.0,-1.0),'HTI':(-0.8,0.8),'DOM':(1.0,0.4),
+            'TTO':(1.0,-0.5),
+            'URY':(1.3,-0.5),'PRY':(1.0,0.8),'ECU':(-1.0,0.5),
+            'GUY':(1.0,0.7),'SUR':(1.0,-0.5),
+        },
     }
 
-    REGION_LABEL_SIZE = {'World':10,'Africa':12,'Asia':11,'Europe':10,'North America':11,'South America':12}
-    REGION_HIDE_LABELS = {'North America': {'ABW','AIA','ATG','BHS','BRB','CUW','DMA','GRD','KNA','LCA','PRI','SXM','TTO','VCT'}, 'South America': set()}
-    REGION_ANCHOR_LABELS = {'North America': {'CAN','USA','MEX'}, 'South America': {'BRA','ARG','CHL','COL','PER'}, 'Europe': {'GBR','FRA','DEU','ESP','ITA'}, 'Africa': {'ZAF','NGA','EGY','DZA','ETH'}, 'Asia': {'CHN','IND','JPN','IDN','SAU'}}
-    REGION_MAX_LABELS = {'North America':14,'South America':12,'Europe':18,'Africa':22,'Asia':18}
+    REGION_LABEL_SIZE = {
+        'World':10,
+        'Africa':12,
+        'Asia':11,
+        'Europe':10,
+        'North America':12,
+        'Latin America & Caribbean':11,
+    }
+
+    REGION_HIDE_LABELS = {
+        'North America': set(),
+        'Latin America & Caribbean': {
+            # Keep tiny island polygons/hover data but suppress overlapping text.
+            'ABW','AIA','ATG','BHS','BRB','CUW','DMA','GRD','KNA','LCA','PRI','SXM','VCT'
+        },
+    }
+
+    REGION_ANCHOR_LABELS = {
+        'North America': {'CAN','USA'},
+        'Latin America & Caribbean': {'MEX','CUB','BRA','ARG','CHL','COL','PER'},
+        'Europe': {'GBR','FRA','DEU','ESP','ITA'},
+        'Africa': {'ZAF','NGA','EGY','DZA','ETH'},
+        'Asia': {'CHN','IND','JPN','IDN','SAU'},
+    }
+
+    REGION_MAX_LABELS = {
+        'North America':6,
+        'Latin America & Caribbean':20,
+        'Europe':18,
+        'Africa':22,
+        'Asia':18,
+    }
 
     def format_country_label(row):
         country = row['country']
@@ -1220,7 +1279,8 @@ with tab_map:
         paper_bgcolor='white',
         font=dict(family='Arial',size=11 if is_world else 13,color='#222222'),
     )
-    show_chart(fig_map,f"debt_default_map_{region.lower().replace(' ','_')}_{map_year}.html","cmap")
+    map_region_slug = region.lower().replace('&', 'and').replace(' ', '_')
+    show_chart(fig_map,f"debt_default_map_{map_region_slug}_{map_year}.html","cmap")
 
     st.divider()
     st.markdown(f"### {region} country order — {map_year}")
