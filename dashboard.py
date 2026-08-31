@@ -841,15 +841,6 @@ with tab_map:
         'Africa': 'Figure A-6: Debt in default, Africa',
     }
 
-    if region == 'World':
-        st.markdown(
-            "<div style='font-family:Arial; font-size:16px; margin:4px 0 2px 0;'>"
-            "<span style='color:#1b6f8a;'>Figure A-1:</span> "
-            "<span style='color:#111111; font-weight:600;'>Global debt in default</span>"
-            "</div>",
-            unsafe_allow_html=True,
-        )
-
     st.caption(
         "Country polygons are always shown. Regional extracts use larger country "
         "labels while suppressing tiny or crowded names. Hidden country names "
@@ -971,15 +962,7 @@ with tab_map:
     fig_map.update_layout(
         height=REGION_HEIGHTS.get(region,860),
         geo=geo_kw,
-        title=(
-            None if is_world else
-            dict(
-                text=FIGURE_TITLES.get(region, f'Debt in default, {region}'),
-                x=0.01,
-                xanchor='left',
-                font=dict(size=18,color='#1b6f8a'),
-            )
-        ),
+        title=None,
         legend=dict(
             title=dict(
                 text=legend_title,
@@ -996,7 +979,7 @@ with tab_map:
             itemsizing='constant',
             traceorder='normal',
         ),
-        margin=dict(l=0,r=0,t=8 if is_world else 70,b=0),
+        margin=dict(l=0,r=0,t=8,b=0),
         paper_bgcolor='white',
         font=dict(family='Arial',size=11 if is_world else 13,color='#222222'),
     )
