@@ -907,7 +907,7 @@ with tab_map:
     REGION_BOUNDS = {
         'World': None,
         'Africa': dict(lon=(-20,55),lat=(-36,38)),
-        'Asia': dict(lon=(60,180),lat=(-12,72)),
+        'Asia': dict(lon=(60,180),lat=(-12,58)),
         'Europe': dict(lon=(-15, 68), lat=(28, 72)),
 
         # Canada and the United States. Mexico, Central America and the
@@ -1326,8 +1326,14 @@ with tab_map:
 
     if region == 'Latin America & Caribbean':
         LATAM_CALLOUTS = {
-            'VEN': dict(label_lon=-75.0, label_lat=11.5, arrow='→'),
-            'HTI': dict(label_lon=-66.5, label_lat=22.0, arrow='←'),
+            'VEN': dict(
+                label_lon=-76.5, label_lat=13.0, arrow='→',
+                marker_symbol='triangle-right'
+            ),
+            'HTI': dict(
+                label_lon=-66.0, label_lat=22.2, arrow='←',
+                marker_symbol='triangle-left'
+            ),
         }
 
         for code, spec in LATAM_CALLOUTS.items():
@@ -1339,24 +1345,50 @@ with tab_map:
                 continue
 
             target_lat, target_lon, display_name = COUNTRY_CENTROIDS[code]
-            if code == 'VEN':
-                callout_text = f"<b>{display_name} {spec['arrow']}</b>"
+            default_value = float(row['value'])
+            if default_value >= 1000:
+                value_text = f"${default_value/1e3:,.1f}B"
             else:
-                callout_text = f"<b>{spec['arrow']} {display_name}</b>"
-            if row['value'] >= 10000:
-                callout_text += f"<br><b>${row['value']/1e3:,.1f}B</b>"
+                value_text = f"${default_value:,.0f}M"
 
+            if code == 'VEN':
+                callout_text = (
+                    f"<b>{display_name} {spec['arrow']}</b>"
+                    f"<br><b>{value_text}</b>"
+                )
+            else:
+                callout_text = (
+                    f"<b>{spec['arrow']} {display_name}</b>"
+                    f"<br><b>{value_text}</b>"
+                )
+
+            # Connector line from the external label to the country.
             fig_map.add_trace(go.Scattergeo(
                 lon=[spec['label_lon'], target_lon],
                 lat=[spec['label_lat'], target_lat],
                 mode='lines',
-                line=dict(color='#222222', width=1.4),
+                line=dict(color='#111111', width=2.0),
                 showlegend=False, hoverinfo='skip',
             ))
+
+            # Explicit arrowhead at the country end makes the pointer clear even
+            # after Kaleido downsizes the map for a PNG.
+            fig_map.add_trace(go.Scattergeo(
+                lon=[target_lon], lat=[target_lat],
+                mode='markers',
+                marker=dict(
+                    size=11, color='#111111',
+                    symbol=spec['marker_symbol'],
+                    line=dict(width=0),
+                ),
+                showlegend=False, hoverinfo='skip',
+            ))
+
+            # The number is always shown on its own bold line for readability.
             fig_map.add_trace(go.Scattergeo(
                 lon=[spec['label_lon']], lat=[spec['label_lat']],
                 text=[callout_text], mode='text',
-                textfont=dict(color='#222222', size=11, family='Arial Black'),
+                textfont=dict(color='#111111', size=13, family='Arial Black'),
                 showlegend=False, hoverinfo='skip',
             ))
 
