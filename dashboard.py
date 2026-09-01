@@ -990,7 +990,24 @@ with tab_map:
         rows.append({'source_name':name,'country':display_name.title(),'label':display_name.upper(),'code':code,'lat':float(lat),'lon':float(lon),'value':value,'band':bin_label(value),'region':country_region(code,float(lat),float(lon))})
 
     map_df = pd.DataFrame(rows)
-    view_df = map_df.copy() if region == 'World' else map_df[map_df['region'] == region].copy()
+
+    MIDDLE_EAST_CODES = {
+        'TUR','CYP','EGY','IRN','IRQ','SYR','LBN','ISR','PSE','JOR',
+        'SAU','YEM','OMN','ARE','KWT','QAT','BHR',
+    }
+
+    if region == 'World':
+        view_df = map_df.copy()
+    elif region == 'Asia':
+        # Include Middle East sovereigns explicitly in Asia-Pacific. Several of
+        # their centroids overlap the broad Europe/Africa bounds, so relying only
+        # on country_region() can incorrectly drop them from this choropleth.
+        view_df = map_df[
+            (map_df['region'] == 'Asia') | map_df['code'].isin(MIDDLE_EAST_CODES)
+        ].copy()
+    else:
+        view_df = map_df[map_df['region'] == region].copy()
+
     positive = view_df[view_df['value'].fillna(0) > 0].copy().sort_values(['value','country'],ascending=[False,True])
     positive['rank'] = np.arange(1,len(positive)+1)
     rank_lookup = dict(zip(positive['code'],positive['rank']))
@@ -1058,7 +1075,7 @@ with tab_map:
             # names and inline default amounts are suppressed. Tiny APAC labels
             # below are also omitted to prevent crowding.
             'TUR','CYP','GEO','ARM','AZE',
-            'IRN','IRQ','SYR','LBN','ISR','PSE','JOR',
+            'EGY','IRN','IRQ','SYR','LBN','ISR','PSE','JOR',
             'SAU','YEM','OMN','ARE','KWT','QAT','BHR',
             'LAO','MMR','SGP','BRN'
         },
