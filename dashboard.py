@@ -1360,8 +1360,10 @@ with tab_map:
     if region == 'Latin America & Caribbean':
         LATAM_CALLOUTS = {
             'VEN': dict(
-                label_lon=-76.5, label_lat=13.0, arrow='→',
-                marker_symbol='triangle-right'
+                # Put Venezuela's label in the open Atlantic to the east so it
+                # does not collide with Honduras/Nicaragua/Central America.
+                label_lon=-48.0, label_lat=13.5, arrow='←',
+                marker_symbol='triangle-left'
             ),
             'HTI': dict(
                 label_lon=-66.0, label_lat=22.2, arrow='←',
@@ -1386,7 +1388,7 @@ with tab_map:
 
             if code == 'VEN':
                 callout_text = (
-                    f"<b>{display_name} {spec['arrow']}</b>"
+                    f"<b>{spec['arrow']} {display_name}</b>"
                     f"<br><b>{value_text}</b>"
                 )
             else:
