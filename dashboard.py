@@ -643,12 +643,6 @@ def show_chart(fig, filename, key):
                         trace.textfont.size = new_size
                         trace.textfont.family = 'Arial Black'
 
-                    for ann in export_fig.layout.annotations:
-                        if ann.text and 'MIDDLE EAST' in str(ann.text):
-                            ann.font.size = 16
-                            ann.font.family = 'Arial Black'
-                            ann.borderpad = 11
-
                     export_fig.update_layout(
                         font=dict(size=16),
                         legend=dict(
@@ -913,7 +907,7 @@ with tab_map:
     REGION_BOUNDS = {
         'World': None,
         'Africa': dict(lon=(-20,55),lat=(-36,38)),
-        'Asia': dict(lon=(60,180),lat=(-12,58)),
+        'Asia': dict(lon=(30,180),lat=(-12,58)),
         'Europe': dict(lon=(-15, 68), lat=(28, 72)),
 
         # Canada and the United States. Mexico, Central America and the
@@ -1366,13 +1360,35 @@ with tab_map:
             'BHR': 'BAHRAIN',
         }
 
+        # Visually group the Middle East without covering the sovereign-default
+        # colour fills. The outline remains visible in interactive and PNG maps.
+        middle_east_outline_lon = [30.5, 35.0, 42.0, 50.0, 60.0, 60.0,
+                                   56.0, 50.0, 43.0, 37.0, 32.0, 30.5]
+        middle_east_outline_lat = [41.5, 43.0, 42.0, 40.0, 36.0, 24.0,
+                                   12.0, 12.0, 13.0, 18.0, 29.0, 41.5]
+        fig_map.add_trace(go.Scattergeo(
+            lon=middle_east_outline_lon,
+            lat=middle_east_outline_lat,
+            mode='lines',
+            fill='toself',
+            fillcolor='rgba(255,255,255,0.05)',
+            line=dict(color='#333333', width=2.2),
+            showlegend=False,
+            hoverinfo='skip',
+        ))
+        fig_map.add_trace(go.Scattergeo(
+            lon=[46.0], lat=[43.5],
+            text=['<b>MIDDLE EAST</b>'],
+            mode='text',
+            textfont=dict(color='#111111', size=13, family='Arial Black'),
+            showlegend=False,
+            hoverinfo='skip',
+        ))
+
         middle_east_df = map_df[
             map_df['code'].isin(MIDDLE_EAST_NAMES)
             & (map_df['value'].fillna(0) > 0)
         ].copy()
-        middle_east_df = middle_east_df.sort_values(
-            ['value', 'country'], ascending=[False, True]
-        )
 
         def fmt_middle_east_value(value):
             value = float(value)
@@ -1380,35 +1396,79 @@ with tab_map:
                 return f"${value/1e3:,.1f}B"
             return f"${value:,.0f}M"
 
-        if middle_east_df.empty:
-            middle_east_text = (
-                f"<b>MIDDLE EAST</b><br>"
-                f"<b>{map_year} DEFAULTS</b><br>"
-                "No positive defaults"
+        if not middle_east_df.empty:
+            # Add target coordinates and split callouts to both sides of the
+            # highlighted area. Sorting by latitude minimizes crossing lines.
+            middle_east_df['target_lat'] = middle_east_df['code'].map(
+                lambda c: float(COUNTRY_CENTROIDS[c][0])
             )
-        else:
-            middle_east_total = middle_east_df['value'].sum()
-            summary_lines = [
-                "<b>MIDDLE EAST</b>",
-                f"<b>{map_year} DEFAULTS · {fmt_middle_east_value(middle_east_total)} TOTAL</b>",
-            ]
-            for _, me_row in middle_east_df.iterrows():
-                summary_lines.append(
-                    f"{MIDDLE_EAST_NAMES.get(me_row['code'], me_row['code'])}  "
-                    f"<b>{fmt_middle_east_value(me_row['value'])}</b>"
-                )
-            middle_east_text = '<br>'.join(summary_lines)
+            middle_east_df['target_lon'] = middle_east_df['code'].map(
+                lambda c: float(COUNTRY_CENTROIDS[c][1])
+            )
+            middle_east_df['side'] = np.where(
+                middle_east_df['target_lon'] <= 47.0, 'left', 'right'
+            )
 
-        fig_map.add_annotation(
-            text=middle_east_text,
-            xref='paper', yref='paper',
-            x=0.985, y=0.965,
-            xanchor='right', yanchor='top',
-            showarrow=False, align='left',
-            bgcolor='rgba(255,255,255,0.96)',
-            bordercolor='#b8b8b8', borderwidth=1.2, borderpad=9,
-            font=dict(size=11, color='#111111', family='Arial Black'),
-        )
+            for side, label_lon, arrow_symbol in [
+                ('left', 33.5, 'triangle-right'),
+                ('right', 64.5, 'triangle-left'),
+            ]:
+                side_df = middle_east_df[
+                    middle_east_df['side'] == side
+                ].sort_values(['target_lat', 'value'], ascending=[False, False]).copy()
+                if side_df.empty:
+                    continue
+
+                if len(side_df) == 1:
+                    label_lats = [34.0]
+                else:
+                    label_lats = np.linspace(52.5, 14.0, len(side_df))
+
+                for (_, me_row), label_lat in zip(side_df.iterrows(), label_lats):
+                    code = me_row['code']
+                    target_lon = float(me_row['target_lon'])
+                    target_lat = float(me_row['target_lat'])
+                    value_text = fmt_middle_east_value(me_row['value'])
+                    country_text = MIDDLE_EAST_NAMES.get(code, code)
+                    callout_text = (
+                        f"<b>{country_text}</b><br>"
+                        f"<b>{value_text}</b>"
+                    )
+
+                    # Connector line to the sovereign.
+                    fig_map.add_trace(go.Scattergeo(
+                        lon=[label_lon, target_lon],
+                        lat=[float(label_lat), target_lat],
+                        mode='lines',
+                        line=dict(color='#111111', width=1.8),
+                        showlegend=False,
+                        hoverinfo='skip',
+                    ))
+
+                    # Explicit arrowhead at the country end stays visible in PNG.
+                    fig_map.add_trace(go.Scattergeo(
+                        lon=[target_lon], lat=[target_lat],
+                        mode='markers',
+                        marker=dict(
+                            size=10,
+                            color='#111111',
+                            symbol=arrow_symbol,
+                            line=dict(width=0),
+                        ),
+                        showlegend=False,
+                        hoverinfo='skip',
+                    ))
+
+                    fig_map.add_trace(go.Scattergeo(
+                        lon=[label_lon], lat=[float(label_lat)],
+                        text=[callout_text],
+                        mode='text',
+                        textfont=dict(
+                            color='#111111', size=11, family='Arial Black'
+                        ),
+                        showlegend=False,
+                        hoverinfo='skip',
+                    ))
 
     if region == 'Latin America & Caribbean':
         LATAM_CALLOUTS = {
