@@ -1,0 +1,24 @@
+name: Add Middle East summary
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/add-middle-east-summary.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python .github/scripts/add_middle_east_summary.py
+      - run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add dashboard.py
+          git commit -m "Add Middle East category summary to Asia map"
+          git push
