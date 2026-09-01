@@ -1394,8 +1394,8 @@ with tab_map:
             'VEN': dict(
                 # Keep the label east of Venezuela but start the connector away
                 # from the text so the line/arrow never crosses the amount.
-                label_lon=-51.0, label_lat=12.0,
-                line_lon=-62.8, line_lat=7.5,
+                label_lon=-58.5, label_lat=13.2,
+                line_lon=-62.2, line_lat=8.2,
                 marker_symbol='triangle-left'
             ),
         }
