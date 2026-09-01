@@ -649,6 +649,12 @@ def show_chart(fig, filename, key):
                             ann.font.family = 'Arial Black'
                             ann.borderpad = 11
 
+                    for ann in export_fig.layout.annotations:
+                        if ann.text and 'MIDDLE EAST' in str(ann.text):
+                            ann.font.size = 16
+                            ann.font.family = 'Arial Black'
+                            ann.borderpad = 11
+
                     export_fig.update_layout(
                         font=dict(size=16),
                         legend=dict(
@@ -1345,6 +1351,70 @@ with tab_map:
                         family=font_family,
                     )
                 ))
+
+    if region == 'Asia':
+        MIDDLE_EAST_NAMES = {
+            'TUR': 'TURKIYE',
+            'CYP': 'CYPRUS',
+            'IRN': 'IRAN',
+            'IRQ': 'IRAQ',
+            'SYR': 'SYRIA',
+            'LBN': 'LEBANON',
+            'ISR': 'ISRAEL',
+            'PSE': 'WEST BANK & GAZA',
+            'JOR': 'JORDAN',
+            'SAU': 'SAUDI ARABIA',
+            'YEM': 'YEMEN',
+            'OMN': 'OMAN',
+            'ARE': 'UAE',
+            'KWT': 'KUWAIT',
+            'QAT': 'QATAR',
+            'BHR': 'BAHRAIN',
+        }
+
+        middle_east_df = map_df[
+            map_df['code'].isin(MIDDLE_EAST_NAMES)
+            & (map_df['value'].fillna(0) > 0)
+        ].copy()
+        middle_east_df = middle_east_df.sort_values(
+            ['value', 'country'], ascending=[False, True]
+        )
+
+        def fmt_middle_east_value(value):
+            value = float(value)
+            if value >= 1000:
+                return f"${value/1e3:,.1f}B"
+            return f"${value:,.0f}M"
+
+        if middle_east_df.empty:
+            middle_east_text = (
+                f"<b>MIDDLE EAST</b><br>"
+                f"<b>{map_year} DEFAULTS</b><br>"
+                "No positive defaults"
+            )
+        else:
+            middle_east_total = middle_east_df['value'].sum()
+            summary_lines = [
+                "<b>MIDDLE EAST</b>",
+                f"<b>{map_year} DEFAULTS · {fmt_middle_east_value(middle_east_total)} TOTAL</b>",
+            ]
+            for _, me_row in middle_east_df.iterrows():
+                summary_lines.append(
+                    f"{MIDDLE_EAST_NAMES.get(me_row['code'], me_row['code'])}  "
+                    f"<b>{fmt_middle_east_value(me_row['value'])}</b>"
+                )
+            middle_east_text = '<br>'.join(summary_lines)
+
+        fig_map.add_annotation(
+            text=middle_east_text,
+            xref='paper', yref='paper',
+            x=0.985, y=0.965,
+            xanchor='right', yanchor='top',
+            showarrow=False, align='left',
+            bgcolor='rgba(255,255,255,0.96)',
+            bordercolor='#b8b8b8', borderwidth=1.2, borderpad=9,
+            font=dict(size=11, color='#111111', family='Arial Black'),
+        )
 
     if region == 'Asia':
         MIDDLE_EAST_NAMES = {
