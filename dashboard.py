@@ -1392,10 +1392,9 @@ with tab_map:
     if region == 'Latin America & Caribbean':
         LATAM_CALLOUTS = {
             'VEN': dict(
-                # Keep the label east of Venezuela but start the connector away
-                # from the text so the line/arrow never crosses the amount.
+                # Keep the label close to Venezuela; the connector starts just
+                # below the amount so the text and arrow read as one callout.
                 label_lon=-58.5, label_lat=13.2,
-                line_lon=-62.2, line_lat=8.2,
                 marker_symbol='triangle-left'
             ),
         }
@@ -1420,10 +1419,13 @@ with tab_map:
                 f"<br><b>{value_text}</b>"
             )
 
-            # Connector line from the external label to the country.
+            # Start the connector immediately below the two-line label so the
+            # Venezuela text/amount is visibly connected to the arrow.
+            line_start_lon = spec['label_lon'] - 0.8
+            line_start_lat = spec['label_lat'] - 1.8
             fig_map.add_trace(go.Scattergeo(
-                lon=[spec['line_lon'], target_lon],
-                lat=[spec['line_lat'], target_lat],
+                lon=[line_start_lon, target_lon],
+                lat=[line_start_lat, target_lat],
                 mode='lines',
                 line=dict(color='#111111', width=1.5),
                 showlegend=False, hoverinfo='skip',
