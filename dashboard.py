@@ -1076,6 +1076,11 @@ with tab_map:
 
     REGION_HIDE_LABELS = {
         'North America': set(),
+        'Africa': {
+            # These Middle East sovereigns can fall inside the Africa crop. Keep
+            # their polygons/default colours and hover data, but suppress text.
+            'IRQ','LBN'
+        },
         'Asia': {
             # Keep Asia-Pacific focused on APAC. Middle East polygons/default
             # colors remain visible where they intersect the crop, but their
@@ -1088,7 +1093,7 @@ with tab_map:
         },
         'Latin America & Caribbean': {
             # Keep tiny island polygons/hover data but suppress overlapping text.
-            # Venezuela and Haiti are rendered separately as callouts below.
+            # Venezuela is rendered separately as a callout below; Haiti stays unlabeled.
             'ABW','AIA','ATG','BHS','BRB','CUW','DMA','GRD','KNA','LCA','PRI','SXM','VCT',
             'VEN','HTI'
         },
@@ -1272,7 +1277,7 @@ with tab_map:
                 code, (default_lon, default_lat)
             )
             label_text = f"<b>{EUROPE_LABEL_NAMES.get(code, code)}</b>"
-            if code in {'UKR', 'BLR'}:
+            if code in {'UKR', 'BLR', 'RUS'}:
                 value_match = view_df.loc[view_df['code'] == code, 'value']
                 if not value_match.empty and pd.notna(value_match.iloc[0]) and float(value_match.iloc[0]) > 0:
                     default_value = float(value_match.iloc[0])
@@ -1298,7 +1303,7 @@ with tab_map:
             (False, '#222222', 'Arial Black'),
             (True, '#ffffff', 'Arial Black'),
         ]:
-            europe_part = europe_label_df[europe_label_df['light_text'] == light_text]
+            europe_part = europe_label_df[(europe_label_df['light_text'] == light_text) & (europe_label_df['code'] != 'RUS')]
             if europe_part.empty:
                 continue
             fig_map.add_trace(go.Scattergeo(
@@ -1312,6 +1317,26 @@ with tab_map:
                     color=text_color,
                     size=9,
                     family=font_family,
+                )
+            ))
+
+        # Russia gets its own larger label so both the name and default amount
+        # remain easy to read on-screen and in PNG exports.
+        russia_label = europe_label_df[europe_label_df['code'] == 'RUS']
+        if not russia_label.empty:
+            russia_row = russia_label.iloc[0]
+            russia_color = '#ffffff' if bool(russia_row['light_text']) else '#222222'
+            fig_map.add_trace(go.Scattergeo(
+                lon=[russia_row['lon']],
+                lat=[russia_row['lat']],
+                text=[russia_row['text']],
+                mode='text',
+                showlegend=False,
+                hoverinfo='skip',
+                textfont=dict(
+                    color=russia_color,
+                    size=12,
+                    family='Arial Black',
                 )
             ))
 
@@ -1367,13 +1392,10 @@ with tab_map:
     if region == 'Latin America & Caribbean':
         LATAM_CALLOUTS = {
             'VEN': dict(
-                # Put Venezuela's label in the open Atlantic to the east so it
-                # does not collide with Honduras/Nicaragua/Central America.
-                label_lon=-48.0, label_lat=13.5, arrow='←',
-                marker_symbol='triangle-left'
-            ),
-            'HTI': dict(
-                label_lon=-66.0, label_lat=22.2, arrow='←',
+                # Keep the label east of Venezuela but start the connector away
+                # from the text so the line/arrow never crosses the amount.
+                label_lon=-51.0, label_lat=12.0,
+                line_lon=-56.0, line_lat=9.5,
                 marker_symbol='triangle-left'
             ),
         }
@@ -1393,23 +1415,17 @@ with tab_map:
             else:
                 value_text = f"${default_value:,.0f}M"
 
-            if code == 'VEN':
-                callout_text = (
-                    f"<b>{spec['arrow']} {display_name}</b>"
-                    f"<br><b>{value_text}</b>"
-                )
-            else:
-                callout_text = (
-                    f"<b>{spec['arrow']} {display_name}</b>"
-                    f"<br><b>{value_text}</b>"
-                )
+            callout_text = (
+                f"<b>{display_name}</b>"
+                f"<br><b>{value_text}</b>"
+            )
 
             # Connector line from the external label to the country.
             fig_map.add_trace(go.Scattergeo(
-                lon=[spec['label_lon'], target_lon],
-                lat=[spec['label_lat'], target_lat],
+                lon=[spec['line_lon'], target_lon],
+                lat=[spec['line_lat'], target_lat],
                 mode='lines',
-                line=dict(color='#111111', width=2.0),
+                line=dict(color='#111111', width=1.5),
                 showlegend=False, hoverinfo='skip',
             ))
 
@@ -1419,7 +1435,7 @@ with tab_map:
                 lon=[target_lon], lat=[target_lat],
                 mode='markers',
                 marker=dict(
-                    size=11, color='#111111',
+                    size=8, color='#111111',
                     symbol=spec['marker_symbol'],
                     line=dict(width=0),
                 ),
