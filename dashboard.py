@@ -632,7 +632,7 @@ def show_chart(fig, filename, key):
                         # World continent labels start larger and should be very
                         # prominent; regional country labels get a ~60% boost.
                         if is_world_export:
-                            new_size = max(28, int(round(float(current_size) * 1.55)))
+                            new_size = max(24, int(round(float(current_size) * 1.45)))
                         else:
                             new_size = max(17, int(round(float(current_size) * 1.65)))
 
@@ -1058,6 +1058,15 @@ with tab_map:
             return f"<b>{name}</b><br>${row['value']/1e3:,.1f}B"
         return name
 
+    # Use light, bold labels on the darker red debt bands. Dark labels remain
+    # clearer on no-default, yellow, and orange countries. This contrast rule
+    # is shared by all regional extracts and carries through to PNG exports.
+    DARK_LABEL_BANDS = {
+        '10,000 - 25,000',
+        '25,000 - 50,000',
+        '50,000+',
+    }
+
     if region == 'World':
         CONTINENT_LABELS = pd.DataFrame([
             {'name':'NORTH AMERICA','lat':47,'lon':-107},
@@ -1074,7 +1083,7 @@ with tab_map:
             mode='text',
             showlegend=False,
             hoverinfo='skip',
-            textfont=dict(color='#2f2f2f',size=18,family='Arial Black'),
+            textfont=dict(color='#2f2f2f',size=16,family='Arial Black'),
         ))
     elif region == 'Europe':
         # Europe gets a curated cartographic label layer so the extract looks
@@ -1199,20 +1208,30 @@ with tab_map:
             })
 
         europe_label_df = pd.DataFrame(europe_labels)
+        europe_band_lookup = dict(zip(view_df['code'], view_df['band']))
+        europe_label_df['band'] = europe_label_df['code'].map(europe_band_lookup)
+        europe_label_df['light_text'] = europe_label_df['band'].isin(DARK_LABEL_BANDS)
 
-        fig_map.add_trace(go.Scattergeo(
-            lon=europe_label_df['lon'],
-            lat=europe_label_df['lat'],
-            text=europe_label_df['text'],
-            mode='text',
-            showlegend=False,
-            hoverinfo='skip',
-            textfont=dict(
-                color='#2b2b2b',
-                size=9,
-                family='Arial'
-            )
-        ))
+        for light_text, text_color, font_family in [
+            (False, '#222222', 'Arial'),
+            (True, '#ffffff', 'Arial Black'),
+        ]:
+            europe_part = europe_label_df[europe_label_df['light_text'] == light_text]
+            if europe_part.empty:
+                continue
+            fig_map.add_trace(go.Scattergeo(
+                lon=europe_part['lon'],
+                lat=europe_part['lat'],
+                text=europe_part['text'],
+                mode='text',
+                showlegend=False,
+                hoverinfo='skip',
+                textfont=dict(
+                    color=text_color,
+                    size=9,
+                    family=font_family,
+                )
+            ))
 
     elif not view_df.empty:
         label_df = view_df.copy()
@@ -1240,8 +1259,28 @@ with tab_map:
                 label_df.at[idx,'plot_lon'] += dx
                 label_df.at[idx,'plot_lat'] += dy
         label_df['map_text'] = label_df.apply(format_country_label,axis=1)
+        label_df['light_text'] = label_df['band'].isin(DARK_LABEL_BANDS)
         if not label_df.empty:
-            fig_map.add_trace(go.Scattergeo(lon=label_df['plot_lon'],lat=label_df['plot_lat'],text=label_df['map_text'],mode='text',showlegend=False,hoverinfo='skip',textfont=dict(color='#333333',size=REGION_LABEL_SIZE.get(region,11),family='Arial')))
+            for light_text, text_color, font_family in [
+                (False, '#222222', 'Arial'),
+                (True, '#ffffff', 'Arial Black'),
+            ]:
+                label_part = label_df[label_df['light_text'] == light_text]
+                if label_part.empty:
+                    continue
+                fig_map.add_trace(go.Scattergeo(
+                    lon=label_part['plot_lon'],
+                    lat=label_part['plot_lat'],
+                    text=label_part['map_text'],
+                    mode='text',
+                    showlegend=False,
+                    hoverinfo='skip',
+                    textfont=dict(
+                        color=text_color,
+                        size=REGION_LABEL_SIZE.get(region,11),
+                        family=font_family,
+                    )
+                ))
 
     geo_kw = dict(showframe=False,showcoastlines=True,coastlinecolor='#8c8c8c',coastlinewidth=0.75,showland=True,landcolor='#f2f2f2',showocean=True,oceancolor='#a9c7e8',showlakes=True,lakecolor='#a9c7e8',showcountries=True,countrycolor='#8c8c8c',countrywidth=0.75,bgcolor='white',projection_type='equirectangular' if region == 'World' else 'mercator')
     if region == 'World':
