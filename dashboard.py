@@ -637,14 +637,21 @@ def show_chart(fig, filename, key):
                             new_size = max(17, int(round(float(current_size) * 1.65)))
 
                         trace.textfont.size = new_size
+                        trace.textfont.family = 'Arial Black'
 
                     export_fig.update_layout(
                         font=dict(size=16),
                         legend=dict(
                             title=dict(
-                                font=dict(size=18 if is_world_export else 20)
+                                font=dict(
+                                    size=18 if is_world_export else 20,
+                                    family='Arial Black',
+                                )
                             ),
-                            font=dict(size=15 if is_world_export else 17),
+                            font=dict(
+                                size=15 if is_world_export else 17,
+                                family='Arial Black',
+                            ),
                         ),
                     )
 
@@ -1055,8 +1062,8 @@ with tab_map:
                 mid = len(words)//2
                 name = ' '.join(words[:mid]) + '<br>' + ' '.join(words[mid:])
         if pd.notna(row['value']) and row['value'] >= 10000:
-            return f"<b>{name}</b><br>${row['value']/1e3:,.1f}B"
-        return name
+            return f"<b>{name}</b><br><b>${row['value']/1e3:,.1f}B</b>"
+        return f"<b>{name}</b>"
 
     # Use light, bold labels on the darker red debt bands. Dark labels remain
     # clearer on no-default, yellow, and orange countries. This contrast rule
@@ -1069,12 +1076,12 @@ with tab_map:
 
     if region == 'World':
         CONTINENT_LABELS = pd.DataFrame([
-            {'name':'NORTH AMERICA','lat':47,'lon':-107},
-            {'name':'SOUTH AMERICA','lat':-17,'lon':-61},
-            {'name':'EUROPE','lat':51,'lon':15},
-            {'name':'AFRICA','lat':3,'lon':20},
-            {'name':'ASIA','lat':42,'lon':92},
-            {'name':'AUSTRALIA','lat':-27,'lon':134},
+            {'name':'<b>NORTH AMERICA</b>','lat':47,'lon':-107},
+            {'name':'<b>SOUTH AMERICA</b>','lat':-17,'lon':-61},
+            {'name':'<b>EUROPE</b>','lat':51,'lon':15},
+            {'name':'<b>AFRICA</b>','lat':3,'lon':20},
+            {'name':'<b>ASIA</b>','lat':42,'lon':92},
+            {'name':'<b>AUSTRALIA</b>','lat':-27,'lon':134},
         ])
         fig_map.add_trace(go.Scattergeo(
             lon=CONTINENT_LABELS['lon'],
@@ -1202,7 +1209,7 @@ with tab_map:
             )
             europe_labels.append({
                 'code': code,
-                'text': EUROPE_LABEL_NAMES.get(code, code),
+                'text': f"<b>{EUROPE_LABEL_NAMES.get(code, code)}</b>",
                 'lon': plot_lon,
                 'lat': plot_lat,
             })
@@ -1213,7 +1220,7 @@ with tab_map:
         europe_label_df['light_text'] = europe_label_df['band'].isin(DARK_LABEL_BANDS)
 
         for light_text, text_color, font_family in [
-            (False, '#222222', 'Arial'),
+            (False, '#222222', 'Arial Black'),
             (True, '#ffffff', 'Arial Black'),
         ]:
             europe_part = europe_label_df[europe_label_df['light_text'] == light_text]
@@ -1262,7 +1269,7 @@ with tab_map:
         label_df['light_text'] = label_df['band'].isin(DARK_LABEL_BANDS)
         if not label_df.empty:
             for light_text, text_color, font_family in [
-                (False, '#222222', 'Arial'),
+                (False, '#222222', 'Arial Black'),
                 (True, '#ffffff', 'Arial Black'),
             ]:
                 label_part = label_df[label_df['light_text'] == light_text]
@@ -1301,7 +1308,7 @@ with tab_map:
         legend=dict(
             title=dict(
                 text=legend_title,
-                font=dict(size=12 if is_world else 15,color='#111111'),
+                font=dict(size=12 if is_world else 15,color='#111111',family='Arial Black'),
             ),
             x=0.02 if is_world else 0.055,
             y=0.055 if is_world else 0.18,
@@ -1310,7 +1317,7 @@ with tab_map:
             bgcolor='rgba(255,255,255,0.97)',
             bordercolor='#b8b8b8',
             borderwidth=1,
-            font=dict(size=10 if is_world else 13,color='#111111'),
+            font=dict(size=10 if is_world else 13,color='#111111',family='Arial Black'),
             itemsizing='constant',
             traceorder='normal',
         ),
