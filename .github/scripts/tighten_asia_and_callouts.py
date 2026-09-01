@@ -1,0 +1,25 @@
+from pathlib import Path
+
+p = Path('dashboard.py')
+s = p.read_text(encoding='utf-8')
+
+# 1) Crop substantially more of Russia while retaining the southern edge and
+# the rest of the Asia-Pacific countries in view.
+old = "        'Asia': dict(lon=(60,180),lat=(-12,72)),\n"
+new = "        'Asia': dict(lon=(60,180),lat=(-12,58)),\n"
+if old not in s:
+    raise SystemExit('Asia bounds line not found')
+s = s.replace(old, new, 1)
+
+# 2) Make Venezuela/Haiti callouts show EVERY positive default value, not only
+# defaults >= $10B. Put the value on its own bold line and add a real arrowhead
+# marker at the country so the connection remains clear on-screen and in PNG.
+old = '''    if region == 'Latin America & Caribbean':\n        LATAM_CALLOUTS = {\n            'VEN': dict(label_lon=-75.0, label_lat=11.5, arrow='→'),\n            'HTI': dict(label_lon=-66.5, label_lat=22.0, arrow='←'),\n        }\n\n        for code, spec in LATAM_CALLOUTS.items():\n            row_match = view_df[view_df['code'] == code]\n            if row_match.empty:\n                continue\n            row = row_match.iloc[0]\n            if pd.isna(row['value']) or float(row['value']) <= 0:\n                continue\n\n            target_lat, target_lon, display_name = COUNTRY_CENTROIDS[code]\n            if code == 'VEN':\n                callout_text = f"<b>{display_name} {spec['arrow']}</b>"\n            else:\n                callout_text = f"<b>{spec['arrow']} {display_name}</b>"\n            if row['value'] >= 10000:\n                callout_text += f"<br><b>${row['value']/1e3:,.1f}B</b>"\n\n            fig_map.add_trace(go.Scattergeo(\n                lon=[spec['label_lon'], target_lon],\n                lat=[spec['label_lat'], target_lat],\n                mode='lines',\n                line=dict(color='#222222', width=1.4),\n                showlegend=False, hoverinfo='skip',\n            ))\n            fig_map.add_trace(go.Scattergeo(\n                lon=[spec['label_lon']], lat=[spec['label_lat']],\n                text=[callout_text], mode='text',\n                textfont=dict(color='#222222', size=11, family='Arial Black'),\n                showlegend=False, hoverinfo='skip',\n            ))\n'''
+new = '''    if region == 'Latin America & Caribbean':\n        LATAM_CALLOUTS = {\n            'VEN': dict(\n                label_lon=-76.5, label_lat=13.0, arrow='→',\n                marker_symbol='triangle-right'\n            ),\n            'HTI': dict(\n                label_lon=-66.0, label_lat=22.2, arrow='←',\n                marker_symbol='triangle-left'\n            ),\n        }\n\n        for code, spec in LATAM_CALLOUTS.items():\n            row_match = view_df[view_df['code'] == code]\n            if row_match.empty:\n                continue\n            row = row_match.iloc[0]\n            if pd.isna(row['value']) or float(row['value']) <= 0:\n                continue\n\n            target_lat, target_lon, display_name = COUNTRY_CENTROIDS[code]\n            default_value = float(row['value'])\n            if default_value >= 1000:\n                value_text = f"${default_value/1e3:,.1f}B"\n            else:\n                value_text = f"${default_value:,.0f}M"\n\n            if code == 'VEN':\n                callout_text = (\n                    f"<b>{display_name} {spec['arrow']}</b>"\n                    f"<br><b>{value_text}</b>"\n                )\n            else:\n                callout_text = (\n                    f"<b>{spec['arrow']} {display_name}</b>"\n                    f"<br><b>{value_text}</b>"\n                )\n\n            # Connector line from the external label to the country.\n            fig_map.add_trace(go.Scattergeo(\n                lon=[spec['label_lon'], target_lon],\n                lat=[spec['label_lat'], target_lat],\n                mode='lines',\n                line=dict(color='#111111', width=2.0),\n                showlegend=False, hoverinfo='skip',\n            ))\n\n            # Explicit arrowhead at the country end makes the pointer clear even\n            # after Kaleido downsizes the map for a PNG.\n            fig_map.add_trace(go.Scattergeo(\n                lon=[target_lon], lat=[target_lat],\n                mode='markers',\n                marker=dict(\n                    size=11, color='#111111',\n                    symbol=spec['marker_symbol'],\n                    line=dict(width=0),\n                ),\n                showlegend=False, hoverinfo='skip',\n            ))\n\n            # The number is always shown on its own bold line for readability.\n            fig_map.add_trace(go.Scattergeo(\n                lon=[spec['label_lon']], lat=[spec['label_lat']],\n                text=[callout_text], mode='text',\n                textfont=dict(color='#111111', size=13, family='Arial Black'),\n                showlegend=False, hoverinfo='skip',\n            ))\n'''
+if old not in s:
+    raise SystemExit('LATAM callout block not found')
+s = s.replace(old, new, 1)
+
+compile(s, 'dashboard.py', 'exec')
+p.write_text(s, encoding='utf-8')
+print('Asia crop tightened and LATAM callouts strengthened; syntax check passed.')
