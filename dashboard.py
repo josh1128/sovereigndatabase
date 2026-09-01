@@ -1335,7 +1335,7 @@ with tab_map:
             if row_match.empty:
                 continue
             row = row_match.iloc[0]
-            if float(row['value'] or 0) <= 0:
+            if pd.isna(row['value']) or float(row['value']) <= 0:
                 continue
 
             target_lat, target_lon, display_name = COUNTRY_CENTROIDS[code]
