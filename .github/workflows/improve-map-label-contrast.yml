@@ -1,0 +1,24 @@
+name: Improve map label contrast
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/improve-map-label-contrast.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python .github/scripts/improve_map_label_contrast.py
+      - run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add dashboard.py
+          git commit -m "Improve map label contrast and world font size"
+          git push
