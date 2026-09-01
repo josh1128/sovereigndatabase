@@ -22,3 +22,5 @@ jobs:
           git add dashboard.py
           git commit -m "Add Middle East category summary to Asia map"
           git push
+
+# trigger: middle-east-summary-v2
