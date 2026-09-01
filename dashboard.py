@@ -1053,9 +1053,14 @@ with tab_map:
     REGION_HIDE_LABELS = {
         'North America': set(),
         'Asia': {
-            # Tiny, dense labels remain available via hover/table but are omitted
-            # from the printed label layer to keep Asia-Pacific readable.
-            'PSE','QAT','BHR','SGP','BRN'
+            # Keep Asia-Pacific focused on APAC. Middle East polygons/default
+            # colors remain visible where they intersect the crop, but their
+            # names and inline default amounts are suppressed. Tiny APAC labels
+            # below are also omitted to prevent crowding.
+            'TUR','CYP','GEO','ARM','AZE',
+            'IRN','IRQ','SYR','LBN','ISR','PSE','JOR',
+            'SAU','YEM','OMN','ARE','KWT','QAT','BHR',
+            'SGP','BRN'
         },
         'Latin America & Caribbean': {
             # Keep tiny island polygons/hover data but suppress overlapping text.
@@ -1070,7 +1075,7 @@ with tab_map:
         'Latin America & Caribbean': {'MEX','CUB','BRA','ARG','CHL','COL','PER'},
         'Europe': {'GBR','FRA','DEU','ESP','ITA'},
         'Africa': {'ZAF','NGA','EGY','DZA','ETH'},
-        'Asia': {'CHN','IND','JPN','IDN','SAU'},
+        'Asia': {'CHN','IND','JPN','IDN'},
     }
 
     REGION_MAX_LABELS = {
@@ -1242,9 +1247,20 @@ with tab_map:
             plot_lon, plot_lat = EUROPE_LABEL_POSITIONS.get(
                 code, (default_lon, default_lat)
             )
+            label_text = f"<b>{EUROPE_LABEL_NAMES.get(code, code)}</b>"
+            if code in {'UKR', 'BLR'}:
+                value_match = view_df.loc[view_df['code'] == code, 'value']
+                if not value_match.empty and pd.notna(value_match.iloc[0]) and float(value_match.iloc[0]) > 0:
+                    default_value = float(value_match.iloc[0])
+                    if default_value >= 1000:
+                        value_text = f"${default_value/1e3:,.1f}B"
+                    else:
+                        value_text = f"${default_value:,.0f}M"
+                    label_text += f"<br><b>{value_text}</b>"
+
             europe_labels.append({
                 'code': code,
-                'text': f"<b>{EUROPE_LABEL_NAMES.get(code, code)}</b>",
+                'text': label_text,
                 'lon': plot_lon,
                 'lat': plot_lat,
             })
