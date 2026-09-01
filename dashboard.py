@@ -650,7 +650,7 @@ def show_chart(fig, filename, key):
                             ),
                             font=dict(size=16, family='Arial Black'),
                             itemsizing='constant',
-                            itemwidth=48,
+                            itemwidth=30,
                             tracegroupgap=8,
                         ),
                     )
@@ -859,7 +859,7 @@ for lab in MAP_LABELS:
     fig_map.add_trace(go.Scattergeo(
         lon=[None], lat=[None], mode='markers',
         marker=dict(size=13, color=MAP_COLORS[lab], symbol='square'),
-        name=f"\u2002{lab}\u2002",
+        name=lab,
         showlegend=True, legendgroup=lab, hoverinfo='skip',
     ))
 
@@ -1316,7 +1316,7 @@ fig_map.update_layout(
         borderwidth=1.2,
         font=dict(size=12,color='#111111',family='Arial Black'),
         itemsizing='constant',
-        itemwidth=44,
+        itemwidth=30,
         tracegroupgap=6,
         traceorder='normal',
     ),
