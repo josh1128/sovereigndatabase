@@ -1395,7 +1395,7 @@ with tab_map:
                 # Keep the label east of Venezuela but start the connector away
                 # from the text so the line/arrow never crosses the amount.
                 label_lon=-51.0, label_lat=12.0,
-                line_lon=-56.0, line_lat=9.5,
+                line_lon=-62.8, line_lat=7.5,
                 marker_symbol='triangle-left'
             ),
         }
