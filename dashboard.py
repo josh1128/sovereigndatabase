@@ -804,15 +804,6 @@ with c1:
 with c2:
     region = st.selectbox("Regional extract",list(REGION_BOUNDS),index=0,key="map_region")
 
-FIGURE_TITLES = {
-    'World': 'Figure A-1: Global debt in default',
-    'Europe': 'Figure A-2: Debt in default, Europe',
-    'Asia': 'Figure A-3: Debt in default, Asia Pacific',
-    'North America': 'Figure A-4: Debt in default, North America',
-    'Latin America & Caribbean': 'Figure A-5: Debt in default, Latin America and the Caribbean',
-    'Africa': 'Figure A-6: Debt in default, Africa',
-}
-
 st.caption(
     "Country polygons are always shown. Regional extracts use larger country "
     "labels while suppressing tiny or crowded names. Hidden country names "
@@ -1310,7 +1301,7 @@ is_world = region == 'World'
 fig_map.update_layout(
     height=REGION_HEIGHTS.get(region,860),
     geo=geo_kw,
-    title=None,
+    title=dict(text=''),
     legend=dict(
         title=dict(
             text=legend_title,
