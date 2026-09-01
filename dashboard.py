@@ -3,7 +3,6 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 import plotly.io as pio
-from plotly.subplots import make_subplots
 
 st.set_page_config(page_title="Sovereign Default Database", layout="wide", page_icon="🌍")
 
@@ -717,20 +716,7 @@ def dark(fig, height, **kw):
 
 LAST_OBS = max(y for y in years if pd.notna(df_creditors.loc[y, 'Total']))
 
-with st.sidebar:
-    st.markdown("## 🌍 Sovereign Defaults")
-    st.markdown("*BoC–BoE Sovereign Default Database*")
-    st.markdown("*Last Update: July 22, 2026*")
-    st.divider()
-    year_range = st.slider("Year range", min_value=years[0], max_value=years[-1],
-                           value=(1976, LAST_OBS))
-    st.caption("Each chart clamps this range to the period it covers.")
-    st.divider()
-    st.markdown("**Creditors to show** (Charts 3 & 5)")
-    sel_creditors = st.multiselect("Creditors", options=CREDITOR_ORDER,
-                                   default=CREDITOR_ORDER, label_visibility="collapsed")
-
-y0, y1 = year_range
+y0, y1 = years[0], LAST_OBS
 
 
 def span(lo=None, hi=None):
@@ -739,780 +725,618 @@ def span(lo=None, hi=None):
     return [y for y in years if a <= y <= b]
 
 
-st.title("🌍 Sovereign Default Database")
-st.caption(f"Last observation: **{LAST_OBS}** · {len(df_countries)} countries tracked "
-           f"· showing **{y0}–{y1}**")
+st.title("🌍 Sovereign Default Map")
+st.caption(
+    f"BoC–BoE Sovereign Default Database · Last observation: **{LAST_OBS}** · "
+    f"{len(df_countries)} countries tracked"
+)
 
-k1, k2, k3, k4 = st.columns(4)
-tot_latest = df_creditors.loc[LAST_OBS, 'Total']
-rate_latest = df_rates.loc[LAST_OBS, '% of all Sovereigns']
-n_latest = df_counts.loc[LAST_OBS, 'Total in default']
-gdp_latest = df_rates.loc[LAST_OBS, '% of World GDP']
-for col, lab, val, sub in [
-    (k1, f"Total debt in default ({LAST_OBS})", f"${tot_latest/1e3:,.0f}B", "US$ billions"),
-    (k2, f"Sovereigns in default ({LAST_OBS})", f"{int(n_latest)}", f"of {int(total_sovereigns[LAST_OBS])} sovereigns"),
-    (k3, "Share of all sovereigns", f"{rate_latest:.1f}%", "in default"),
-    (k4, "Share of world GDP", f"{gdp_latest:.2f}%", "debt in default"),
-]:
-    with col:
-        st.markdown(f"""<div class="metric-card">
-            <div class="metric-label">{lab}</div>
-            <div class="metric-value">{val}</div>
-            <div class="metric-sub">{sub}</div>
-        </div>""", unsafe_allow_html=True)
+# MAP_FORMAT_V2: reference-style regional maps with larger labels.
 
-st.markdown("<br>", unsafe_allow_html=True)
+MAP_BINS = [0,100,1000,10000,25000,50000,np.inf]
+MAP_LABELS = ['0 - 100','100 - 1,000','1,000 - 10,000','10,000 - 25,000','25,000 - 50,000','50,000+']
+MAP_COLORS = {'0 - 100':'#fff200','100 - 1,000':'#f5a623','1,000 - 10,000':'#d98100','10,000 - 25,000':'#ed1c24','25,000 - 50,000':'#b5121b','50,000+':'#7a0000'}
 
-tab_a, tab_b, tab_c, tab_map = st.tabs([
-    "📊 Charts 1–3", "📈 Charts 4–6", "📉 Charts 7–8", "🗺️ Map"])
+def bin_label(v):
+    if pd.isna(v) or v <= 0:
+        return None
+    for lo,hi,lab in zip(MAP_BINS[:-1],MAP_BINS[1:],MAP_LABELS):
+        if lo < v <= hi:
+            return lab
+    return MAP_LABELS[-1]
 
-with tab_a:
-    st.subheader(f"Chart 1: Total share of debt in default by creditor, {LAST_OBS}")
-    pie_year = st.select_slider("Year", options=[y for y in years if pd.notna(df_creditors.loc[y, 'Total'])],
-                                value=LAST_OBS, key="c1_year")
-    labels, vals, cols = [], [], []
-    for c in CREDITOR_ORDER:
-        v = df_creditors.loc[pie_year, c]
-        if pd.notna(v) and v > 0:
-            labels.append(c); vals.append(v); cols.append(CREDITOR_COLORS[c])
-    fig1 = go.Figure(go.Pie(
-        labels=labels, values=vals, marker_colors=cols, sort=False,
-        textinfo='label+percent', textposition='auto',
-        insidetextfont=dict(size=12), hole=0,
-        hovertemplate='<b>%{label}</b><br>$%{value:,.0f}M<br>%{percent}<extra></extra>'))
-    fig1.update_layout(template='plotly_dark', height=520, showlegend=True,
-                       legend=dict(orientation='v', x=1.02, y=0.5, font=dict(size=11)),
-                       margin=dict(l=20, r=20, t=20, b=20),
-                       paper_bgcolor='rgba(0,0,0,0)')
-    show_chart(fig1, f"chart1_share_by_creditor_{pie_year}.html", "c1")
+REGION_BOUNDS = {
+    'World': None,
+    'Africa': dict(lon=(-20,55),lat=(-36,38)),
+    'Asia': dict(lon=(30,180),lat=(-12,58)),
+    'Europe': dict(lon=(-15, 68), lat=(28, 72)),
 
-    st.divider()
-    st.subheader("Chart 2: Sovereign default rates on foreign currency bonds and bank loans")
-    bonds_ct = df_counts['FC bonds']
-    loans_ct = df_counts['FC bank loans']
-    rate_bonds = (bonds_ct / total_sovereigns * 100)
-    rate_both = ((bonds_ct + loans_ct) / total_sovereigns * 100)
+    # Canada and the United States. Mexico, Central America and the
+    # Caribbean are included in the combined Latin America extract below.
+    'North America': dict(lon=(-170,-50),lat=(24,82)),
 
-    s = span()
-    s2 = span(2020)
-    y_max = float(np.nanmax([rate_both.loc[s].max(), rate_both.loc[s2].max()])) if s and s2 else 10
-    y_top = max(5, np.ceil(y_max / 5) * 5)
+    # Mexico + Central America + Caribbean + South America.
+    'Latin America & Caribbean': dict(lon=(-118,-32),lat=(-58,33)),
+}
 
-    fig2 = make_subplots(
-        rows=1, cols=2, shared_yaxes=True, horizontal_spacing=0.06,
-        column_widths=[0.62, 0.38],
-        subplot_titles=(f'a. Sovereign default rates, {s[0]}–{s[-1]}',
-                        f'b. Sovereign default rates, {s2[0]}–{s2[-1]}'))
+REGION_HEIGHTS = {
+    'World':760,
+    'Africa':980,
+    'Asia':880,
+    'Europe':900,
+    'North America':900,
+    'Latin America & Caribbean':980,
+}
 
-    for col, sp in [(1, s), (2, s2)]:
-        fig2.add_trace(go.Scatter(
-            x=sp, y=rate_bonds.loc[sp], name='Foreign currency bonds',
-            line=dict(color='#c00000', width=2.5), legendgroup='bonds',
-            showlegend=(col == 1),
-            hovertemplate='%{x}: %{y:.1f}%<extra>FC bonds</extra>'), row=1, col=col)
-        fig2.add_trace(go.Scatter(
-            x=sp, y=rate_both.loc[sp], name='Foreign currency bonds and bank loans',
-            line=dict(color='#00b0f0', width=2.5), legendgroup='both',
-            showlegend=(col == 1),
-            hovertemplate='%{x}: %{y:.1f}%<extra>FC bonds and bank loans</extra>'),
-            row=1, col=col)
+REGION_OVERRIDES = {
+    'Europe': {'GBR','IRL','ISL','PRT','ESP','FRA','BEL','NLD','LUX','DEU','CHE','AUT','ITA','MLT','DNK','NOR','SWE','FIN','EST','LVA','LTU','POL','CZE','SVK','HUN','SVN','HRV','BIH','SRB','MNE','MKD','ALB','GRC','BGR','ROU','MDA','UKR','BLR'},
+    'Asia': {'RUS','TUR','GEO','ARM','AZE','CYP','KAZ'},
 
-    dark(fig2, 430, legend=dict(orientation='h', y=-0.16, x=0.5, xanchor='center'))
-    fig2.update_yaxes(title_text='% of all sovereigns', range=[0, y_top], row=1, col=1)
-    fig2.update_yaxes(range=[0, y_top], showticklabels=True, row=1, col=2)
-    fig2.update_xaxes(dtick=1, row=1, col=2)
-    for ann in fig2.layout.annotations:
-        ann.font.size = 13
-    show_chart(fig2, "chart2_default_rates.html", "c2")
+    # North America is kept as the Canada / United States extract.
+    'North America': {'CAN','USA'},
 
-    st.divider()
-    s3 = span(1976)
-    CHART3_ORDER = ['FC bonds','FC bank loans','Paris Club','China','Other official creditors','LC debt','Other private creditors','IMF','IBRD','IDA','IADB']
-    CHART3_COLORS = {
-        'FC bonds': '#8c6d46','FC bank loans': '#d98bbd','Paris Club': '#2e7d32','China': '#3f7fbf','Other official creditors': '#e0a100','LC debt': '#3d87a6','Other private creditors': '#5fa85f','IMF': '#8172a8','IBRD': '#c6b700','IDA': '#b94b55','IADB': '#6c9db5'}
-    st.subheader(f"Sovereign Debt in Default by Creditor, {s3[0]}–{s3[-1]}")
-    st.caption("US$ billions")
-    fig3 = go.Figure()
-    visible_creditors = [c for c in CHART3_ORDER if c in sel_creditors]
-    for c in visible_creditors:
-        fig3.add_trace(go.Bar(x=s3,y=df_creditors.loc[s3, c].fillna(0)/1e3,name=c,marker_color=CHART3_COLORS[c]))
-    fig3.update_layout(template="plotly_white",height=560,barmode="stack",paper_bgcolor="white",plot_bgcolor="white",margin=dict(l=70,r=35,t=35,b=125),hovermode="x unified",font=dict(color="#222222",size=12),yaxis=dict(title="US$ billions",gridcolor="rgba(0,0,0,0.10)",gridwidth=0.8,zeroline=False,showline=False,tickfont=dict(color="#444444")),xaxis=dict(gridcolor="rgba(0,0,0,0)",zeroline=False,showline=False,tickfont=dict(color="#444444"),tickmode="linear",dtick=10),legend=dict(orientation="h",yanchor="top",y=-0.16,xanchor="center",x=0.5,font=dict(size=11,color="#333333"),traceorder="normal",itemwidth=55))
-    show_chart(fig3, "chart3_debt_by_creditor.html", "c3")
+    # Combined Mexico, Central America, Caribbean and South America extract.
+    'Latin America & Caribbean': {
+        'MEX',
+        'BLZ','GTM','HND','SLV','NIC','CRI','PAN',
+        'BHS','CUB','JAM','HTI','DOM','PRI','ABW','AIA','ATG','BRB','CUW',
+        'DMA','GRD','KNA','LCA','SXM','TTO','VCT',
+        'ARG','BOL','BRA','CHL','COL','ECU','GUY','PRY','PER','SUR','URY','VEN',
+    },
+}
 
-with tab_b:
-    s4 = span(1976)
-    st.subheader(f"Chart 4: Sovereign debt in default by debtor, {s4[0]}–{s4[-1]}")
-    fig4 = go.Figure()
-    for d in DEBTOR_ORDER:
-        fig4.add_trace(go.Bar(x=s4,y=df_debtors.loc[s4,d].fillna(0)/1e3,name=d,marker_color=DEBTOR_COLORS[d]))
-    dark(fig4,460,barmode='stack',yaxis=dict(title='US$ billions'),legend=dict(orientation='h',y=-0.16,font=dict(size=10)))
-    show_chart(fig4,"chart4_debt_by_debtor.html","c4")
+def country_region(code,lat,lon):
+    # Explicit membership takes priority where regional bounding boxes overlap.
+    for rg in ['Europe','Asia','Latin America & Caribbean','North America']:
+        if code in REGION_OVERRIDES.get(rg,set()):
+            return rg
 
-    st.divider()
-    s5 = span(1960)
-    st.subheader(f"Chart 5: Proportion of debt in default by creditor, {s5[0]}–{s5[-1]}")
-    shares = df_creditors.loc[s5,CREDITOR_ORDER].fillna(0)
-    denom = shares.sum(axis=1).replace(0,np.nan)
-    shares = shares.div(denom,axis=0)*100
-    fig5 = go.Figure()
-    for c in CREDITOR_ORDER:
-        if c in sel_creditors:
-            fig5.add_trace(go.Scatter(x=s5,y=shares[c],name=c,mode='lines',stackgroup='one',line=dict(width=0.5,color=CREDITOR_COLORS[c]),fillcolor=CREDITOR_COLORS[c]))
-    dark(fig5,520,yaxis=dict(title='%',range=[0,100]),legend=dict(orientation='h',y=-0.16,font=dict(size=10)))
-    show_chart(fig5,"chart5_proportion_by_creditor.html","c5")
+    for rg in ['Africa','Latin America & Caribbean','North America','Europe','Asia']:
+        b = REGION_BOUNDS[rg]
+        if b['lon'][0] <= lon <= b['lon'][1] and b['lat'][0] <= lat <= b['lat'][1]:
+            return rg
+    return 'Other'
 
-    st.divider()
-    s6 = span(2000)
-    st.subheader(f"Chart 6: Official loans in default for Paris Club and China, {s6[0]}–{s6[-1]}")
-    fig6 = go.Figure()
-    fig6.add_trace(go.Bar(x=s6,y=df_creditors.loc[s6,'Paris Club'].fillna(0)/1e3,name='Paris Club',marker_color='#ff0000'))
-    fig6.add_trace(go.Bar(x=s6,y=df_creditors.loc[s6,'China'].fillna(0)/1e3,name='China',marker_color='#5b9bd5'))
-    dark(fig6,440,barmode='stack',yaxis=dict(title='US$ billions'),xaxis=dict(dtick=1),legend=dict(orientation='h',y=-0.2))
-    show_chart(fig6,"chart6_paris_club_china.html","c6")
+opts = span() or years
+c1,c2 = st.columns([2.5,1.5])
+with c1:
+    map_year = st.select_slider("Map year",options=opts,value=LAST_OBS if LAST_OBS in opts else opts[-1],key="map_year")
+with c2:
+    region = st.selectbox("Regional extract",list(REGION_BOUNDS),index=0,key="map_region")
 
-with tab_c:
-    s7 = span(1980)
-    st.subheader(f"Chart 7: Sovereign debt in default as a share of global public debt and global GDP, {s7[0]}–{s7[-1]}")
-    fig7 = go.Figure()
-    for col,color,name in [('% of World Public Debt','#a52929','Defaulted global public debt as a share of global public debt'),('% of World GDP','#2e9bd6','Defaulted global public debt as a share of world GDP'),('% of EM/Other Developing GDP','#f5a623','Defaulted emerging-market public debt as a share of emerging-market GDP')]:
-        fig7.add_trace(go.Scatter(x=s7,y=df_rates.loc[s7,col],name=name,mode='lines',line=dict(color=color,width=2.5)))
-    dark(fig7,480,yaxis=dict(title='%'),legend=dict(orientation='h',y=-0.22,font=dict(size=10)))
-    show_chart(fig7,"chart7_share_of_debt_and_gdp.html","c7")
+FIGURE_TITLES = {
+    'World': 'Figure A-1: Global debt in default',
+    'Europe': 'Figure A-2: Debt in default, Europe',
+    'Asia': 'Figure A-3: Debt in default, Asia Pacific',
+    'North America': 'Figure A-4: Debt in default, North America',
+    'Latin America & Caribbean': 'Figure A-5: Debt in default, Latin America and the Caribbean',
+    'Africa': 'Figure A-6: Debt in default, Africa',
+}
 
-    st.divider()
-    s8 = span(1976)
-    st.subheader(f"Chart 8: Number of sovereign defaults, {s8[0]}–{s8[-1]}")
-    fig8 = go.Figure()
-    for col,color in [('FC bank loans','#2e75b6'),('FC bonds','#c0504d'),('LC debt','#9bbb59')]:
-        fig8.add_trace(go.Scatter(x=s8,y=df_counts.loc[s8,col],name=col,mode='lines',line=dict(color=color,width=2.5)))
-    dark(fig8,460,yaxis=dict(title='Number of sovereigns'),legend=dict(orientation='h',y=-0.18))
-    show_chart(fig8,"chart8_number_of_defaults.html","c8")
+st.caption(
+    "Country polygons are always shown. Regional extracts use larger country "
+    "labels while suppressing tiny or crowded names. Hidden country names "
+    "remain available through hover and the table below."
+)
 
-# ═══ MAP: Global debt in default ═════════════════════════════════════════════
-with tab_map:
-    # MAP_FORMAT_V2: reference-style regional maps with larger labels.
+rows = []
+for name in df_countries.index:
+    code = ISO3_MAP.get(name)
+    centroid = COUNTRY_CENTROIDS.get(code) if code else None
+    if not code or not centroid:
+        continue
+    lat,lon,display_name = centroid
+    value = df_countries.loc[name,map_year]
+    value = np.nan if pd.isna(value) else float(value)
+    rows.append({'source_name':name,'country':display_name.title(),'label':display_name.upper(),'code':code,'lat':float(lat),'lon':float(lon),'value':value,'band':bin_label(value),'region':country_region(code,float(lat),float(lon))})
 
-    MAP_BINS = [0,100,1000,10000,25000,50000,np.inf]
-    MAP_LABELS = ['0 - 100','100 - 1,000','1,000 - 10,000','10,000 - 25,000','25,000 - 50,000','50,000+']
-    MAP_COLORS = {'0 - 100':'#fff200','100 - 1,000':'#f5a623','1,000 - 10,000':'#d98100','10,000 - 25,000':'#ed1c24','25,000 - 50,000':'#b5121b','50,000+':'#7a0000'}
+map_df = pd.DataFrame(rows)
 
-    def bin_label(v):
-        if pd.isna(v) or v <= 0:
-            return None
-        for lo,hi,lab in zip(MAP_BINS[:-1],MAP_BINS[1:],MAP_LABELS):
-            if lo < v <= hi:
-                return lab
-        return MAP_LABELS[-1]
+MIDDLE_EAST_CODES = {
+    'TUR','CYP','EGY','IRN','IRQ','SYR','LBN','ISR','PSE','JOR',
+    'SAU','YEM','OMN','ARE','KWT','QAT','BHR',
+}
 
-    REGION_BOUNDS = {
-        'World': None,
-        'Africa': dict(lon=(-20,55),lat=(-36,38)),
-        'Asia': dict(lon=(30,180),lat=(-12,58)),
-        'Europe': dict(lon=(-15, 68), lat=(28, 72)),
+if region == 'World':
+    view_df = map_df.copy()
+elif region == 'Asia':
+    # Include Middle East sovereigns explicitly in Asia-Pacific. Several of
+    # their centroids overlap the broad Europe/Africa bounds, so relying only
+    # on country_region() can incorrectly drop them from this choropleth.
+    view_df = map_df[
+        (map_df['region'] == 'Asia') | map_df['code'].isin(MIDDLE_EAST_CODES)
+    ].copy()
+elif region == 'Europe':
+    # Russia remains classified with Asia for the Asia-Pacific extract, but
+    # also include it in Europe so its polygon uses the selected year's
+    # shared six-category debt-default colour there as well.
+    view_df = map_df[
+        (map_df['region'] == 'Europe') | (map_df['code'] == 'RUS')
+    ].copy()
+else:
+    view_df = map_df[map_df['region'] == region].copy()
 
-        # Canada and the United States. Mexico, Central America and the
-        # Caribbean are included in the combined Latin America extract below.
-        'North America': dict(lon=(-170,-50),lat=(24,82)),
+positive = view_df[view_df['value'].fillna(0) > 0].copy().sort_values(['value','country'],ascending=[False,True])
+positive['rank'] = np.arange(1,len(positive)+1)
+rank_lookup = dict(zip(positive['code'],positive['rank']))
+view_df['rank'] = view_df['code'].map(rank_lookup)
 
-        # Mexico + Central America + Caribbean + South America.
-        'Latin America & Caribbean': dict(lon=(-118,-32),lat=(-58,33)),
-    }
+fig_map = go.Figure()
+for lab in MAP_LABELS:
+    # Dedicated legend key: this guarantees the same six categories, in the
+    # same order and style, even when a selected region has no country in a band.
+    fig_map.add_trace(go.Scattergeo(
+        lon=[None], lat=[None], mode='markers',
+        marker=dict(size=13, color=MAP_COLORS[lab], symbol='square'),
+        name=f"\u2002{lab}\u2002",
+        showlegend=True, legendgroup=lab, hoverinfo='skip',
+    ))
 
-    REGION_HEIGHTS = {
-        'World':760,
-        'Africa':980,
-        'Asia':880,
-        'Europe':900,
-        'North America':900,
-        'Latin America & Caribbean':980,
-    }
+    band_df = view_df[view_df['band'] == lab]
+    if band_df.empty:
+        continue
 
-    REGION_OVERRIDES = {
-        'Europe': {'GBR','IRL','ISL','PRT','ESP','FRA','BEL','NLD','LUX','DEU','CHE','AUT','ITA','MLT','DNK','NOR','SWE','FIN','EST','LVA','LTU','POL','CZE','SVK','HUN','SVN','HRV','BIH','SRB','MNE','MKD','ALB','GRC','BGR','ROU','MDA','UKR','BLR'},
-        'Asia': {'RUS','TUR','GEO','ARM','AZE','CYP','KAZ'},
+    customdata = np.column_stack([
+        band_df['value'].map(lambda x:f"${x:,.0f}M"),
+        band_df['rank'].map(lambda x:'' if pd.isna(x) else f"#{int(x)}")
+    ])
+    fig_map.add_trace(go.Choropleth(
+        locations=band_df['code'], z=np.ones(len(band_df)),
+        text=band_df['country'], customdata=customdata,
+        colorscale=[[0,MAP_COLORS[lab]],[1,MAP_COLORS[lab]]],
+        showscale=False, marker_line_color='#8c8c8c', marker_line_width=0.75,
+        name=lab, showlegend=False, legendgroup=lab,
+        hovertemplate='<b>%{text}</b><br>Debt in default: %{customdata[0]}<br>Regional order: %{customdata[1]}<extra></extra>'
+    ))
 
-        # North America is kept as the Canada / United States extract.
-        'North America': {'CAN','USA'},
+SHORT_LABELS = {'United Kingdom':'UK','United States':'USA','Central African Republic':'CENTRAL AFRICAN<br>REPUBLIC','Democratic Republic Of The Congo':'DR CONGO','Congo [Drc]':'DR CONGO','Congo [Republic]':'CONGO','Bosnia And Herzegovina':'BOSNIA &<br>HERZ.','North Macedonia':'N. MACEDONIA','Papua New Guinea':'PAPUA NEW<br>GUINEA','Equatorial Guinea':'EQUATORIAL<br>GUINEA','Guinea-Bissau':'GUINEA-<br>BISSAU','South Africa':'SOUTH AFRICA','South Sudan':'SOUTH SUDAN','Saudi Arabia':'SAUDI ARABIA','North Korea':'NORTH KOREA','South Korea':'SOUTH KOREA','New Zealand':'NEW ZEALAND'}
 
-        # Combined Mexico, Central America, Caribbean and South America extract.
-        'Latin America & Caribbean': {
-            'MEX',
-            'BLZ','GTM','HND','SLV','NIC','CRI','PAN',
-            'BHS','CUB','JAM','HTI','DOM','PRI','ABW','AIA','ATG','BRB','CUW',
-            'DMA','GRD','KNA','LCA','SXM','TTO','VCT',
-            'ARG','BOL','BRA','CHL','COL','ECU','GUY','PRY','PER','SUR','URY','VEN',
-        },
-    }
+LABEL_OFFSETS = {
+    'Africa': {'GMB':(-2.5,0.5),'GNB':(-2.3,-0.7),'SLE':(-1.6,-0.8),'LBR':(-1.4,-1.0),'TGO':(0.0,-1.2),'BEN':(0.8,1.0),'RWA':(1.4,0.5),'BDI':(1.5,-0.8),'UGA':(0.8,1.2),'MWI':(1.1,-0.4),'SWZ':(1.0,-0.8),'LSO':(0.0,-1.4),'DJI':(1.4,0.4),'ERI':(0.7,1.0)},
+    'Europe': {'BEL':(-1.7,0.7),'NLD':(0.0,1.3),'LUX':(1.3,-0.4),'CHE':(-1.1,-0.8),'AUT':(1.0,0.3),'SVN':(-0.8,-0.7),'HRV':(1.0,-0.5),'BIH':(1.5,0.2),'MNE':(0.5,-0.8),'SRB':(1.2,0.4),'MKD':(0.8,-0.9),'ALB':(-0.6,-0.7),'SVK':(0.7,0.7),'CZE':(-0.5,0.8),'MDA':(1.1,0.3)},
+    'Asia': {'LBN':(-2.0,1.2),'ISR':(-2.0,-0.8),'PSE':(2.0,-1.0),'JOR':(2.0,0.7),'KWT':(1.8,1.0),'QAT':(1.8,-0.7),'BHR':(1.8,0.7),'SGP':(2.0,-1.0),'BRN':(2.0,0.8),'BGD':(2.0,1.0),'NPL':(-2.0,1.0),'LKA':(2.0,-1.5),'THA':(-2.2,1.0),'LAO':(-2.2,1.4),'KHM':(2.2,-1.2),'VNM':(2.5,0.4),'MYS':(2.5,-1.0)},
+    'North America': {},
+    'Latin America & Caribbean': {
+        'BLZ':(-1.0,0.8),'GTM':(-1.0,0.3),'HND':(0.8,0.9),
+        'SLV':(-1.5,-0.6),'NIC':(0.9,-0.3),'CRI':(-0.8,-0.8),'PAN':(1.2,-0.7),
+        'CUB':(0.0,1.2),'JAM':(0.0,-1.0),'HTI':(-0.8,0.8),'DOM':(1.0,0.4),
+        'TTO':(1.0,-0.5),
+        'URY':(1.3,-0.5),'PRY':(1.0,0.8),'ECU':(-1.0,0.5),
+        'GUY':(1.0,0.7),'SUR':(1.0,-0.5),
+    },
+}
 
-    def country_region(code,lat,lon):
-        # Explicit membership takes priority where regional bounding boxes overlap.
-        for rg in ['Europe','Asia','Latin America & Caribbean','North America']:
-            if code in REGION_OVERRIDES.get(rg,set()):
-                return rg
+REGION_LABEL_SIZE = {
+    'World':10,
+    'Africa':12,
+    'Asia':11,
+    'Europe':10,
+    'North America':12,
+    'Latin America & Caribbean':11,
+}
 
-        for rg in ['Africa','Latin America & Caribbean','North America','Europe','Asia']:
-            b = REGION_BOUNDS[rg]
-            if b['lon'][0] <= lon <= b['lon'][1] and b['lat'][0] <= lat <= b['lat'][1]:
-                return rg
-        return 'Other'
-
-    opts = span() or years
-    c1,c2 = st.columns([2.5,1.5])
-    with c1:
-        map_year = st.select_slider("Map year",options=opts,value=LAST_OBS if LAST_OBS in opts else opts[-1],key="map_year")
-    with c2:
-        region = st.selectbox("Regional extract",list(REGION_BOUNDS),index=0,key="map_region")
-
-    FIGURE_TITLES = {
-        'World': 'Figure A-1: Global debt in default',
-        'Europe': 'Figure A-2: Debt in default, Europe',
-        'Asia': 'Figure A-3: Debt in default, Asia Pacific',
-        'North America': 'Figure A-4: Debt in default, North America',
-        'Latin America & Caribbean': 'Figure A-5: Debt in default, Latin America and the Caribbean',
-        'Africa': 'Figure A-6: Debt in default, Africa',
-    }
-
-    st.caption(
-        "Country polygons are always shown. Regional extracts use larger country "
-        "labels while suppressing tiny or crowded names. Hidden country names "
-        "remain available through hover and the table below."
-    )
-
-    rows = []
-    for name in df_countries.index:
-        code = ISO3_MAP.get(name)
-        centroid = COUNTRY_CENTROIDS.get(code) if code else None
-        if not code or not centroid:
-            continue
-        lat,lon,display_name = centroid
-        value = df_countries.loc[name,map_year]
-        value = np.nan if pd.isna(value) else float(value)
-        rows.append({'source_name':name,'country':display_name.title(),'label':display_name.upper(),'code':code,'lat':float(lat),'lon':float(lon),'value':value,'band':bin_label(value),'region':country_region(code,float(lat),float(lon))})
-
-    map_df = pd.DataFrame(rows)
-
-    MIDDLE_EAST_CODES = {
-        'TUR','CYP','EGY','IRN','IRQ','SYR','LBN','ISR','PSE','JOR',
+REGION_HIDE_LABELS = {
+    'North America': set(),
+    'Africa': {
+        # These Middle East sovereigns can fall inside the Africa crop. Keep
+        # their polygons/default colours and hover data, but suppress text.
+        'IRQ','LBN'
+    },
+    'Asia': {
+        # Keep Asia-Pacific focused on APAC. Middle East polygons/default
+        # colors remain visible where they intersect the crop, but their
+        # names and inline default amounts are suppressed. Tiny APAC labels
+        # below are also omitted to prevent crowding.
+        'TUR','CYP','GEO','ARM','AZE',
+        'EGY','IRN','IRQ','SYR','LBN','ISR','PSE','JOR',
         'SAU','YEM','OMN','ARE','KWT','QAT','BHR',
+        'LAO','MMR','SGP','BRN'
+    },
+    'Latin America & Caribbean': {
+        # Keep tiny island polygons/hover data but suppress overlapping text.
+        # Venezuela is rendered separately as a callout below; Haiti stays unlabeled.
+        'ABW','AIA','ATG','BHS','BRB','CUW','DMA','GRD','KNA','LCA','PRI','SXM','VCT',
+        'VEN','HTI'
+    },
+}
+
+REGION_ANCHOR_LABELS = {
+    'North America': {'CAN','USA'},
+    'Latin America & Caribbean': {'MEX','CUB','BRA','ARG','CHL','COL','PER'},
+    'Europe': {'GBR','FRA','DEU','ESP','ITA'},
+    'Africa': {'ZAF','NGA','EGY','DZA','ETH'},
+    'Asia': {'CHN','IND','JPN','IDN'},
+}
+
+REGION_MAX_LABELS = {
+    'North America':6,
+    'Latin America & Caribbean':20,
+    'Europe':18,
+    'Africa':22,
+    'Asia':14,
+}
+
+def format_country_label(row):
+    country = row['country']
+    name = SHORT_LABELS.get(country,country.upper())
+    if '<br>' not in name and len(name) > 15:
+        words = name.split()
+        if len(words) >= 2:
+            mid = len(words)//2
+            name = ' '.join(words[:mid]) + '<br>' + ' '.join(words[mid:])
+    if pd.notna(row['value']) and row['value'] >= 10000:
+        return f"<b>{name}</b><br><b>${row['value']/1e3:,.1f}B</b>"
+    return f"<b>{name}</b>"
+
+# Use light, bold labels on the darker red debt bands. Dark labels remain
+# clearer on no-default, yellow, and orange countries. This contrast rule
+# is shared by all regional extracts and carries through to PNG exports.
+DARK_LABEL_BANDS = {
+    '10,000 - 25,000',
+    '25,000 - 50,000',
+    '50,000+',
+}
+
+if region == 'World':
+    CONTINENT_LABELS = pd.DataFrame([
+        {'name':'<b>NORTH AMERICA</b>','lat':47,'lon':-107},
+        {'name':'<b>SOUTH AMERICA</b>','lat':-17,'lon':-61},
+        {'name':'<b>EUROPE</b>','lat':51,'lon':15},
+        {'name':'<b>AFRICA</b>','lat':3,'lon':20},
+        {'name':'<b>ASIA</b>','lat':42,'lon':92},
+        {'name':'<b>AUSTRALIA</b>','lat':-27,'lon':134},
+    ])
+    fig_map.add_trace(go.Scattergeo(
+        lon=CONTINENT_LABELS['lon'],
+        lat=CONTINENT_LABELS['lat'],
+        text=CONTINENT_LABELS['name'],
+        mode='text',
+        showlegend=False,
+        hoverinfo='skip',
+        textfont=dict(color='#2f2f2f',size=16,family='Arial Black'),
+    ))
+elif region == 'Europe':
+    # Europe gets a curated cartographic label layer so the extract looks
+    # like the published reference map. These labels do not depend on a
+    # country having a default observation in df_countries.
+    EUROPE_LABEL_CODES = [
+        'ISL', 'IRL', 'GBR', 'PRT', 'ESP', 'FRA', 'BEL', 'NLD', 'LUX',
+        'DEU', 'DNK', 'NOR', 'SWE', 'FIN', 'EST', 'LVA', 'LTU', 'POL',
+        'CZE', 'SVK', 'AUT', 'CHE', 'HUN', 'SVN', 'HRV', 'BIH', 'SRB',
+        'MNE', 'MKD', 'ALB', 'ITA', 'GRC', 'BGR', 'ROU', 'MDA', 'UKR',
+        'BLR', 'RUS', 'TUR', 'GEO', 'ARM', 'AZE', 'KAZ',
+    ]
+
+    EUROPE_LABEL_NAMES = {
+        'ISL': 'ICELAND',
+        'IRL': 'IRELAND',
+        'GBR': 'UNITED\nKINGDOM',
+        'PRT': 'PORTUGAL',
+        'ESP': 'SPAIN',
+        'FRA': 'FRANCE',
+        'BEL': 'BELGIUM',
+        'NLD': 'NETHERLANDS',
+        'LUX': 'LUX.',
+        'DEU': 'GERMANY',
+        'DNK': 'DENMARK',
+        'NOR': 'NORWAY',
+        'SWE': 'SWEDEN',
+        'FIN': 'FINLAND',
+        'EST': 'ESTONIA',
+        'LVA': 'LATVIA',
+        'LTU': 'LITHUANIA',
+        'POL': 'POLAND',
+        'CZE': 'CZECHIA',
+        'SVK': 'SLOVAKIA',
+        'AUT': 'AUSTRIA',
+        'CHE': 'SWITZERLAND',
+        'HUN': 'HUNGARY',
+        'SVN': 'SLOVENIA',
+        'HRV': 'CROATIA',
+        'BIH': 'BOSNIA &\nHERZ.',
+        'SRB': 'SERBIA',
+        'MNE': 'MONTENEGRO',
+        'MKD': 'N. MACEDONIA',
+        'ALB': 'ALBANIA',
+        'ITA': 'ITALY',
+        'GRC': 'GREECE',
+        'BGR': 'BULGARIA',
+        'ROU': 'ROMANIA',
+        'MDA': 'MOLDOVA',
+        'UKR': 'UKRAINE',
+        'BLR': 'BELARUS',
+        'RUS': 'RUSSIA',
+        'TUR': 'TÜRKIYE',
+        'GEO': 'GEORGIA',
+        'ARM': 'ARMENIA',
+        'AZE': 'AZERBAIJAN',
+        'KAZ': 'KAZAKHSTAN',
     }
 
-    if region == 'World':
-        view_df = map_df.copy()
-    elif region == 'Asia':
-        # Include Middle East sovereigns explicitly in Asia-Pacific. Several of
-        # their centroids overlap the broad Europe/Africa bounds, so relying only
-        # on country_region() can incorrectly drop them from this choropleth.
-        view_df = map_df[
-            (map_df['region'] == 'Asia') | map_df['code'].isin(MIDDLE_EAST_CODES)
-        ].copy()
-    elif region == 'Europe':
-        # Russia remains classified with Asia for the Asia-Pacific extract, but
-        # also include it in Europe so its polygon uses the selected year's
-        # shared six-category debt-default colour there as well.
-        view_df = map_df[
-            (map_df['region'] == 'Europe') | (map_df['code'] == 'RUS')
-        ].copy()
-    else:
-        view_df = map_df[map_df['region'] == region].copy()
+    # Exact positions keep dense central/southeastern Europe legible and
+    # place large transcontinental countries where they are visible in this
+    # regional crop rather than at their geographic centroids.
+    EUROPE_LABEL_POSITIONS = {
+        'ISL': (-19.0, 65.0),
+        'IRL': (-8.2, 53.2),
+        'GBR': (-3.2, 55.0),
+        'PRT': (-8.0, 39.5),
+        'ESP': (-3.7, 40.2),
+        'FRA': (2.0, 46.3),
+        'BEL': (3.4, 50.7),
+        'NLD': (5.8, 52.7),
+        'LUX': (6.8, 49.5),
+        'DEU': (10.5, 51.4),
+        'DNK': (10.0, 56.3),
+        'NOR': (8.5, 62.0),
+        'SWE': (16.0, 61.5),
+        'FIN': (26.0, 63.5),
+        'EST': (26.5, 58.8),
+        'LVA': (24.8, 56.9),
+        'LTU': (23.8, 54.8),
+        'POL': (19.4, 52.0),
+        'CZE': (14.5, 49.5),
+        'SVK': (20.4, 48.6),
+        'AUT': (14.3, 47.5),
+        'CHE': (8.0, 46.4),
+        'HUN': (19.0, 47.0),
+        'SVN': (14.3, 45.8),
+        'HRV': (16.4, 44.7),
+        'BIH': (18.1, 43.7),
+        'SRB': (21.0, 44.5),
+        'MNE': (19.2, 42.7),
+        'MKD': (22.0, 41.2),
+        'ALB': (19.5, 40.7),
+        'ITA': (12.5, 42.2),
+        'GRC': (22.5, 38.8),
+        'BGR': (25.4, 42.8),
+        'ROU': (25.0, 46.0),
+        'MDA': (29.0, 47.2),
+        'UKR': (31.5, 49.2),
+        'BLR': (28.0, 53.6),
+        'RUS': (49.0, 59.0),
+        'TUR': (34.5, 39.1),
+        'GEO': (43.3, 42.0),
+        'ARM': (45.2, 40.0),
+        'AZE': (48.0, 40.5),
+        'KAZ': (58.0, 48.5),
+    }
 
-    positive = view_df[view_df['value'].fillna(0) > 0].copy().sort_values(['value','country'],ascending=[False,True])
-    positive['rank'] = np.arange(1,len(positive)+1)
-    rank_lookup = dict(zip(positive['code'],positive['rank']))
-    view_df['rank'] = view_df['code'].map(rank_lookup)
+    europe_labels = []
+    europe_default_codes = set(
+        view_df.loc[view_df['value'].fillna(0) > 0, 'code'].dropna()
+    )
+    europe_visible_codes = europe_default_codes | {'GRC'}
 
-    fig_map = go.Figure()
-    for lab in MAP_LABELS:
-        # Dedicated legend key: this guarantees the same six categories, in the
-        # same order and style, even when a selected region has no country in a band.
-        fig_map.add_trace(go.Scattergeo(
-            lon=[None], lat=[None], mode='markers',
-            marker=dict(size=13, color=MAP_COLORS[lab], symbol='square'),
-            name=f"\u2002{lab}\u2002",
-            showlegend=True, legendgroup=lab, hoverinfo='skip',
-        ))
-
-        band_df = view_df[view_df['band'] == lab]
-        if band_df.empty:
+    for code in EUROPE_LABEL_CODES:
+        if code not in europe_visible_codes:
             continue
+        if code not in COUNTRY_CENTROIDS:
+            continue
+        default_lat, default_lon, _ = COUNTRY_CENTROIDS[code]
+        plot_lon, plot_lat = EUROPE_LABEL_POSITIONS.get(
+            code, (default_lon, default_lat)
+        )
+        label_text = f"<b>{EUROPE_LABEL_NAMES.get(code, code)}</b>"
+        if code in {'UKR', 'BLR', 'RUS'}:
+            value_match = view_df.loc[view_df['code'] == code, 'value']
+            if not value_match.empty and pd.notna(value_match.iloc[0]) and float(value_match.iloc[0]) > 0:
+                default_value = float(value_match.iloc[0])
+                if default_value >= 1000:
+                    value_text = f"${default_value/1e3:,.1f}B"
+                else:
+                    value_text = f"${default_value:,.0f}M"
+                label_text += f"<br><b>{value_text}</b>"
 
-        customdata = np.column_stack([
-            band_df['value'].map(lambda x:f"${x:,.0f}M"),
-            band_df['rank'].map(lambda x:'' if pd.isna(x) else f"#{int(x)}")
-        ])
-        fig_map.add_trace(go.Choropleth(
-            locations=band_df['code'], z=np.ones(len(band_df)),
-            text=band_df['country'], customdata=customdata,
-            colorscale=[[0,MAP_COLORS[lab]],[1,MAP_COLORS[lab]]],
-            showscale=False, marker_line_color='#8c8c8c', marker_line_width=0.75,
-            name=lab, showlegend=False, legendgroup=lab,
-            hovertemplate='<b>%{text}</b><br>Debt in default: %{customdata[0]}<br>Regional order: %{customdata[1]}<extra></extra>'
-        ))
+        europe_labels.append({
+            'code': code,
+            'text': label_text,
+            'lon': plot_lon,
+            'lat': plot_lat,
+        })
 
-    SHORT_LABELS = {'United Kingdom':'UK','United States':'USA','Central African Republic':'CENTRAL AFRICAN<br>REPUBLIC','Democratic Republic Of The Congo':'DR CONGO','Congo [Drc]':'DR CONGO','Congo [Republic]':'CONGO','Bosnia And Herzegovina':'BOSNIA &<br>HERZ.','North Macedonia':'N. MACEDONIA','Papua New Guinea':'PAPUA NEW<br>GUINEA','Equatorial Guinea':'EQUATORIAL<br>GUINEA','Guinea-Bissau':'GUINEA-<br>BISSAU','South Africa':'SOUTH AFRICA','South Sudan':'SOUTH SUDAN','Saudi Arabia':'SAUDI ARABIA','North Korea':'NORTH KOREA','South Korea':'SOUTH KOREA','New Zealand':'NEW ZEALAND'}
+    europe_label_df = pd.DataFrame(europe_labels)
+    europe_band_lookup = dict(zip(view_df['code'], view_df['band']))
+    europe_label_df['band'] = europe_label_df['code'].map(europe_band_lookup)
+    europe_label_df['light_text'] = europe_label_df['band'].isin(DARK_LABEL_BANDS)
 
-    LABEL_OFFSETS = {
-        'Africa': {'GMB':(-2.5,0.5),'GNB':(-2.3,-0.7),'SLE':(-1.6,-0.8),'LBR':(-1.4,-1.0),'TGO':(0.0,-1.2),'BEN':(0.8,1.0),'RWA':(1.4,0.5),'BDI':(1.5,-0.8),'UGA':(0.8,1.2),'MWI':(1.1,-0.4),'SWZ':(1.0,-0.8),'LSO':(0.0,-1.4),'DJI':(1.4,0.4),'ERI':(0.7,1.0)},
-        'Europe': {'BEL':(-1.7,0.7),'NLD':(0.0,1.3),'LUX':(1.3,-0.4),'CHE':(-1.1,-0.8),'AUT':(1.0,0.3),'SVN':(-0.8,-0.7),'HRV':(1.0,-0.5),'BIH':(1.5,0.2),'MNE':(0.5,-0.8),'SRB':(1.2,0.4),'MKD':(0.8,-0.9),'ALB':(-0.6,-0.7),'SVK':(0.7,0.7),'CZE':(-0.5,0.8),'MDA':(1.1,0.3)},
-        'Asia': {'LBN':(-2.0,1.2),'ISR':(-2.0,-0.8),'PSE':(2.0,-1.0),'JOR':(2.0,0.7),'KWT':(1.8,1.0),'QAT':(1.8,-0.7),'BHR':(1.8,0.7),'SGP':(2.0,-1.0),'BRN':(2.0,0.8),'BGD':(2.0,1.0),'NPL':(-2.0,1.0),'LKA':(2.0,-1.5),'THA':(-2.2,1.0),'LAO':(-2.2,1.4),'KHM':(2.2,-1.2),'VNM':(2.5,0.4),'MYS':(2.5,-1.0)},
-        'North America': {},
-        'Latin America & Caribbean': {
-            'BLZ':(-1.0,0.8),'GTM':(-1.0,0.3),'HND':(0.8,0.9),
-            'SLV':(-1.5,-0.6),'NIC':(0.9,-0.3),'CRI':(-0.8,-0.8),'PAN':(1.2,-0.7),
-            'CUB':(0.0,1.2),'JAM':(0.0,-1.0),'HTI':(-0.8,0.8),'DOM':(1.0,0.4),
-            'TTO':(1.0,-0.5),
-            'URY':(1.3,-0.5),'PRY':(1.0,0.8),'ECU':(-1.0,0.5),
-            'GUY':(1.0,0.7),'SUR':(1.0,-0.5),
-        },
-    }
-
-    REGION_LABEL_SIZE = {
-        'World':10,
-        'Africa':12,
-        'Asia':11,
-        'Europe':10,
-        'North America':12,
-        'Latin America & Caribbean':11,
-    }
-
-    REGION_HIDE_LABELS = {
-        'North America': set(),
-        'Africa': {
-            # These Middle East sovereigns can fall inside the Africa crop. Keep
-            # their polygons/default colours and hover data, but suppress text.
-            'IRQ','LBN'
-        },
-        'Asia': {
-            # Keep Asia-Pacific focused on APAC. Middle East polygons/default
-            # colors remain visible where they intersect the crop, but their
-            # names and inline default amounts are suppressed. Tiny APAC labels
-            # below are also omitted to prevent crowding.
-            'TUR','CYP','GEO','ARM','AZE',
-            'EGY','IRN','IRQ','SYR','LBN','ISR','PSE','JOR',
-            'SAU','YEM','OMN','ARE','KWT','QAT','BHR',
-            'LAO','MMR','SGP','BRN'
-        },
-        'Latin America & Caribbean': {
-            # Keep tiny island polygons/hover data but suppress overlapping text.
-            # Venezuela is rendered separately as a callout below; Haiti stays unlabeled.
-            'ABW','AIA','ATG','BHS','BRB','CUW','DMA','GRD','KNA','LCA','PRI','SXM','VCT',
-            'VEN','HTI'
-        },
-    }
-
-    REGION_ANCHOR_LABELS = {
-        'North America': {'CAN','USA'},
-        'Latin America & Caribbean': {'MEX','CUB','BRA','ARG','CHL','COL','PER'},
-        'Europe': {'GBR','FRA','DEU','ESP','ITA'},
-        'Africa': {'ZAF','NGA','EGY','DZA','ETH'},
-        'Asia': {'CHN','IND','JPN','IDN'},
-    }
-
-    REGION_MAX_LABELS = {
-        'North America':6,
-        'Latin America & Caribbean':20,
-        'Europe':18,
-        'Africa':22,
-        'Asia':14,
-    }
-
-    def format_country_label(row):
-        country = row['country']
-        name = SHORT_LABELS.get(country,country.upper())
-        if '<br>' not in name and len(name) > 15:
-            words = name.split()
-            if len(words) >= 2:
-                mid = len(words)//2
-                name = ' '.join(words[:mid]) + '<br>' + ' '.join(words[mid:])
-        if pd.notna(row['value']) and row['value'] >= 10000:
-            return f"<b>{name}</b><br><b>${row['value']/1e3:,.1f}B</b>"
-        return f"<b>{name}</b>"
-
-    # Use light, bold labels on the darker red debt bands. Dark labels remain
-    # clearer on no-default, yellow, and orange countries. This contrast rule
-    # is shared by all regional extracts and carries through to PNG exports.
-    DARK_LABEL_BANDS = {
-        '10,000 - 25,000',
-        '25,000 - 50,000',
-        '50,000+',
-    }
-
-    if region == 'World':
-        CONTINENT_LABELS = pd.DataFrame([
-            {'name':'<b>NORTH AMERICA</b>','lat':47,'lon':-107},
-            {'name':'<b>SOUTH AMERICA</b>','lat':-17,'lon':-61},
-            {'name':'<b>EUROPE</b>','lat':51,'lon':15},
-            {'name':'<b>AFRICA</b>','lat':3,'lon':20},
-            {'name':'<b>ASIA</b>','lat':42,'lon':92},
-            {'name':'<b>AUSTRALIA</b>','lat':-27,'lon':134},
-        ])
+    for light_text, text_color, font_family in [
+        (False, '#222222', 'Arial Black'),
+        (True, '#ffffff', 'Arial Black'),
+    ]:
+        europe_part = europe_label_df[(europe_label_df['light_text'] == light_text) & (europe_label_df['code'] != 'RUS')]
+        if europe_part.empty:
+            continue
         fig_map.add_trace(go.Scattergeo(
-            lon=CONTINENT_LABELS['lon'],
-            lat=CONTINENT_LABELS['lat'],
-            text=CONTINENT_LABELS['name'],
+            lon=europe_part['lon'],
+            lat=europe_part['lat'],
+            text=europe_part['text'],
             mode='text',
             showlegend=False,
             hoverinfo='skip',
-            textfont=dict(color='#2f2f2f',size=16,family='Arial Black'),
-        ))
-    elif region == 'Europe':
-        # Europe gets a curated cartographic label layer so the extract looks
-        # like the published reference map. These labels do not depend on a
-        # country having a default observation in df_countries.
-        EUROPE_LABEL_CODES = [
-            'ISL', 'IRL', 'GBR', 'PRT', 'ESP', 'FRA', 'BEL', 'NLD', 'LUX',
-            'DEU', 'DNK', 'NOR', 'SWE', 'FIN', 'EST', 'LVA', 'LTU', 'POL',
-            'CZE', 'SVK', 'AUT', 'CHE', 'HUN', 'SVN', 'HRV', 'BIH', 'SRB',
-            'MNE', 'MKD', 'ALB', 'ITA', 'GRC', 'BGR', 'ROU', 'MDA', 'UKR',
-            'BLR', 'RUS', 'TUR', 'GEO', 'ARM', 'AZE', 'KAZ',
-        ]
-
-        EUROPE_LABEL_NAMES = {
-            'ISL': 'ICELAND',
-            'IRL': 'IRELAND',
-            'GBR': 'UNITED\nKINGDOM',
-            'PRT': 'PORTUGAL',
-            'ESP': 'SPAIN',
-            'FRA': 'FRANCE',
-            'BEL': 'BELGIUM',
-            'NLD': 'NETHERLANDS',
-            'LUX': 'LUX.',
-            'DEU': 'GERMANY',
-            'DNK': 'DENMARK',
-            'NOR': 'NORWAY',
-            'SWE': 'SWEDEN',
-            'FIN': 'FINLAND',
-            'EST': 'ESTONIA',
-            'LVA': 'LATVIA',
-            'LTU': 'LITHUANIA',
-            'POL': 'POLAND',
-            'CZE': 'CZECHIA',
-            'SVK': 'SLOVAKIA',
-            'AUT': 'AUSTRIA',
-            'CHE': 'SWITZERLAND',
-            'HUN': 'HUNGARY',
-            'SVN': 'SLOVENIA',
-            'HRV': 'CROATIA',
-            'BIH': 'BOSNIA &\nHERZ.',
-            'SRB': 'SERBIA',
-            'MNE': 'MONTENEGRO',
-            'MKD': 'N. MACEDONIA',
-            'ALB': 'ALBANIA',
-            'ITA': 'ITALY',
-            'GRC': 'GREECE',
-            'BGR': 'BULGARIA',
-            'ROU': 'ROMANIA',
-            'MDA': 'MOLDOVA',
-            'UKR': 'UKRAINE',
-            'BLR': 'BELARUS',
-            'RUS': 'RUSSIA',
-            'TUR': 'TÜRKIYE',
-            'GEO': 'GEORGIA',
-            'ARM': 'ARMENIA',
-            'AZE': 'AZERBAIJAN',
-            'KAZ': 'KAZAKHSTAN',
-        }
-
-        # Exact positions keep dense central/southeastern Europe legible and
-        # place large transcontinental countries where they are visible in this
-        # regional crop rather than at their geographic centroids.
-        EUROPE_LABEL_POSITIONS = {
-            'ISL': (-19.0, 65.0),
-            'IRL': (-8.2, 53.2),
-            'GBR': (-3.2, 55.0),
-            'PRT': (-8.0, 39.5),
-            'ESP': (-3.7, 40.2),
-            'FRA': (2.0, 46.3),
-            'BEL': (3.4, 50.7),
-            'NLD': (5.8, 52.7),
-            'LUX': (6.8, 49.5),
-            'DEU': (10.5, 51.4),
-            'DNK': (10.0, 56.3),
-            'NOR': (8.5, 62.0),
-            'SWE': (16.0, 61.5),
-            'FIN': (26.0, 63.5),
-            'EST': (26.5, 58.8),
-            'LVA': (24.8, 56.9),
-            'LTU': (23.8, 54.8),
-            'POL': (19.4, 52.0),
-            'CZE': (14.5, 49.5),
-            'SVK': (20.4, 48.6),
-            'AUT': (14.3, 47.5),
-            'CHE': (8.0, 46.4),
-            'HUN': (19.0, 47.0),
-            'SVN': (14.3, 45.8),
-            'HRV': (16.4, 44.7),
-            'BIH': (18.1, 43.7),
-            'SRB': (21.0, 44.5),
-            'MNE': (19.2, 42.7),
-            'MKD': (22.0, 41.2),
-            'ALB': (19.5, 40.7),
-            'ITA': (12.5, 42.2),
-            'GRC': (22.5, 38.8),
-            'BGR': (25.4, 42.8),
-            'ROU': (25.0, 46.0),
-            'MDA': (29.0, 47.2),
-            'UKR': (31.5, 49.2),
-            'BLR': (28.0, 53.6),
-            'RUS': (49.0, 59.0),
-            'TUR': (34.5, 39.1),
-            'GEO': (43.3, 42.0),
-            'ARM': (45.2, 40.0),
-            'AZE': (48.0, 40.5),
-            'KAZ': (58.0, 48.5),
-        }
-
-        europe_labels = []
-        europe_default_codes = set(
-            view_df.loc[view_df['value'].fillna(0) > 0, 'code'].dropna()
-        )
-        europe_visible_codes = europe_default_codes | {'GRC'}
-
-        for code in EUROPE_LABEL_CODES:
-            if code not in europe_visible_codes:
-                continue
-            if code not in COUNTRY_CENTROIDS:
-                continue
-            default_lat, default_lon, _ = COUNTRY_CENTROIDS[code]
-            plot_lon, plot_lat = EUROPE_LABEL_POSITIONS.get(
-                code, (default_lon, default_lat)
+            textfont=dict(
+                color=text_color,
+                size=9,
+                family=font_family,
             )
-            label_text = f"<b>{EUROPE_LABEL_NAMES.get(code, code)}</b>"
-            if code in {'UKR', 'BLR', 'RUS'}:
-                value_match = view_df.loc[view_df['code'] == code, 'value']
-                if not value_match.empty and pd.notna(value_match.iloc[0]) and float(value_match.iloc[0]) > 0:
-                    default_value = float(value_match.iloc[0])
-                    if default_value >= 1000:
-                        value_text = f"${default_value/1e3:,.1f}B"
-                    else:
-                        value_text = f"${default_value:,.0f}M"
-                    label_text += f"<br><b>{value_text}</b>"
+        ))
 
-            europe_labels.append({
-                'code': code,
-                'text': label_text,
-                'lon': plot_lon,
-                'lat': plot_lat,
-            })
+    # Russia gets its own larger label so both the name and default amount
+    # remain easy to read on-screen and in PNG exports.
+    russia_label = europe_label_df[europe_label_df['code'] == 'RUS']
+    if not russia_label.empty:
+        russia_row = russia_label.iloc[0]
+        russia_color = '#ffffff' if bool(russia_row['light_text']) else '#222222'
+        fig_map.add_trace(go.Scattergeo(
+            lon=[russia_row['lon']],
+            lat=[russia_row['lat']],
+            text=[russia_row['text']],
+            mode='text',
+            showlegend=False,
+            hoverinfo='skip',
+            textfont=dict(
+                color=russia_color,
+                size=12,
+                family='Arial Black',
+            )
+        ))
 
-        europe_label_df = pd.DataFrame(europe_labels)
-        europe_band_lookup = dict(zip(view_df['code'], view_df['band']))
-        europe_label_df['band'] = europe_label_df['code'].map(europe_band_lookup)
-        europe_label_df['light_text'] = europe_label_df['band'].isin(DARK_LABEL_BANDS)
-
+elif not view_df.empty:
+    label_df = view_df.copy()
+    hidden_codes = REGION_HIDE_LABELS.get(region,set())
+    anchor_codes = REGION_ANCHOR_LABELS.get(region,set())
+    label_df['has_default'] = label_df['value'].fillna(0) > 0
+    label_df['is_anchor'] = label_df['code'].isin(anchor_codes)
+    label_df = label_df[label_df['has_default'] | label_df['is_anchor']].copy()
+    label_df = label_df[~label_df['code'].isin(hidden_codes)].copy()
+    label_df['_label_value'] = label_df['value'].fillna(0)
+    label_df = label_df.sort_values(['has_default','_label_value','is_anchor','country'],ascending=[False,False,False,True]).head(REGION_MAX_LABELS.get(region,20)).copy()
+    label_df['plot_lon'] = label_df['lon']
+    label_df['plot_lat'] = label_df['lat']
+    if region == 'North America':
+        manual_positions = {'CAN':(-106.0,51.0),'USA':(-98.0,38.0),'MEX':(-102.0,23.5)}
+        for idx,row in label_df.iterrows():
+            if row['code'] in manual_positions:
+                label_df.at[idx,'plot_lon'],label_df.at[idx,'plot_lat'] = manual_positions[row['code']]
+    region_offsets = LABEL_OFFSETS.get(region,{})
+    for idx,row in label_df.iterrows():
+        if region == 'North America' and row['code'] in {'CAN','USA','MEX'}:
+            continue
+        if row['code'] in region_offsets:
+            dx,dy = region_offsets[row['code']]
+            label_df.at[idx,'plot_lon'] += dx
+            label_df.at[idx,'plot_lat'] += dy
+    label_df['map_text'] = label_df.apply(format_country_label,axis=1)
+    label_df['light_text'] = label_df['band'].isin(DARK_LABEL_BANDS)
+    if not label_df.empty:
         for light_text, text_color, font_family in [
             (False, '#222222', 'Arial Black'),
             (True, '#ffffff', 'Arial Black'),
         ]:
-            europe_part = europe_label_df[(europe_label_df['light_text'] == light_text) & (europe_label_df['code'] != 'RUS')]
-            if europe_part.empty:
+            label_part = label_df[label_df['light_text'] == light_text]
+            if label_part.empty:
                 continue
             fig_map.add_trace(go.Scattergeo(
-                lon=europe_part['lon'],
-                lat=europe_part['lat'],
-                text=europe_part['text'],
+                lon=label_part['plot_lon'],
+                lat=label_part['plot_lat'],
+                text=label_part['map_text'],
                 mode='text',
                 showlegend=False,
                 hoverinfo='skip',
                 textfont=dict(
                     color=text_color,
-                    size=9,
+                    size=REGION_LABEL_SIZE.get(region,11),
                     family=font_family,
                 )
             ))
 
-        # Russia gets its own larger label so both the name and default amount
-        # remain easy to read on-screen and in PNG exports.
-        russia_label = europe_label_df[europe_label_df['code'] == 'RUS']
-        if not russia_label.empty:
-            russia_row = russia_label.iloc[0]
-            russia_color = '#ffffff' if bool(russia_row['light_text']) else '#222222'
-            fig_map.add_trace(go.Scattergeo(
-                lon=[russia_row['lon']],
-                lat=[russia_row['lat']],
-                text=[russia_row['text']],
-                mode='text',
-                showlegend=False,
-                hoverinfo='skip',
-                textfont=dict(
-                    color=russia_color,
-                    size=12,
-                    family='Arial Black',
-                )
-            ))
-
-    elif not view_df.empty:
-        label_df = view_df.copy()
-        hidden_codes = REGION_HIDE_LABELS.get(region,set())
-        anchor_codes = REGION_ANCHOR_LABELS.get(region,set())
-        label_df['has_default'] = label_df['value'].fillna(0) > 0
-        label_df['is_anchor'] = label_df['code'].isin(anchor_codes)
-        label_df = label_df[label_df['has_default'] | label_df['is_anchor']].copy()
-        label_df = label_df[~label_df['code'].isin(hidden_codes)].copy()
-        label_df['_label_value'] = label_df['value'].fillna(0)
-        label_df = label_df.sort_values(['has_default','_label_value','is_anchor','country'],ascending=[False,False,False,True]).head(REGION_MAX_LABELS.get(region,20)).copy()
-        label_df['plot_lon'] = label_df['lon']
-        label_df['plot_lat'] = label_df['lat']
-        if region == 'North America':
-            manual_positions = {'CAN':(-106.0,51.0),'USA':(-98.0,38.0),'MEX':(-102.0,23.5)}
-            for idx,row in label_df.iterrows():
-                if row['code'] in manual_positions:
-                    label_df.at[idx,'plot_lon'],label_df.at[idx,'plot_lat'] = manual_positions[row['code']]
-        region_offsets = LABEL_OFFSETS.get(region,{})
-        for idx,row in label_df.iterrows():
-            if region == 'North America' and row['code'] in {'CAN','USA','MEX'}:
-                continue
-            if row['code'] in region_offsets:
-                dx,dy = region_offsets[row['code']]
-                label_df.at[idx,'plot_lon'] += dx
-                label_df.at[idx,'plot_lat'] += dy
-        label_df['map_text'] = label_df.apply(format_country_label,axis=1)
-        label_df['light_text'] = label_df['band'].isin(DARK_LABEL_BANDS)
-        if not label_df.empty:
-            for light_text, text_color, font_family in [
-                (False, '#222222', 'Arial Black'),
-                (True, '#ffffff', 'Arial Black'),
-            ]:
-                label_part = label_df[label_df['light_text'] == light_text]
-                if label_part.empty:
-                    continue
-                fig_map.add_trace(go.Scattergeo(
-                    lon=label_part['plot_lon'],
-                    lat=label_part['plot_lat'],
-                    text=label_part['map_text'],
-                    mode='text',
-                    showlegend=False,
-                    hoverinfo='skip',
-                    textfont=dict(
-                        color=text_color,
-                        size=REGION_LABEL_SIZE.get(region,11),
-                        family=font_family,
-                    )
-                ))
-
-    if region == 'Latin America & Caribbean':
-        LATAM_CALLOUTS = {
-            'VEN': dict(
-                # Keep the label close to Venezuela; the connector starts just
-                # below the amount so the text and arrow read as one callout.
-                label_lon=-58.5, label_lat=13.2,
-                marker_symbol='triangle-left'
-            ),
-        }
-
-        for code, spec in LATAM_CALLOUTS.items():
-            row_match = view_df[view_df['code'] == code]
-            if row_match.empty:
-                continue
-            row = row_match.iloc[0]
-            if pd.isna(row['value']) or float(row['value']) <= 0:
-                continue
-
-            target_lat, target_lon, display_name = COUNTRY_CENTROIDS[code]
-            default_value = float(row['value'])
-            if default_value >= 1000:
-                value_text = f"${default_value/1e3:,.1f}B"
-            else:
-                value_text = f"${default_value:,.0f}M"
-
-            callout_text = (
-                f"<b>{display_name}</b>"
-                f"<br><b>{value_text}</b>"
-            )
-
-            # Start the connector immediately below the two-line label so the
-            # Venezuela text/amount is visibly connected to the arrow.
-            line_start_lon = spec['label_lon'] - 0.8
-            line_start_lat = spec['label_lat'] - 1.8
-            fig_map.add_trace(go.Scattergeo(
-                lon=[line_start_lon, target_lon],
-                lat=[line_start_lat, target_lat],
-                mode='lines',
-                line=dict(color='#111111', width=1.5),
-                showlegend=False, hoverinfo='skip',
-            ))
-
-            # Explicit arrowhead at the country end makes the pointer clear even
-            # after Kaleido downsizes the map for a PNG.
-            fig_map.add_trace(go.Scattergeo(
-                lon=[target_lon], lat=[target_lat],
-                mode='markers',
-                marker=dict(
-                    size=8, color='#111111',
-                    symbol=spec['marker_symbol'],
-                    line=dict(width=0),
-                ),
-                showlegend=False, hoverinfo='skip',
-            ))
-
-            # The number is always shown on its own bold line for readability.
-            fig_map.add_trace(go.Scattergeo(
-                lon=[spec['label_lon']], lat=[spec['label_lat']],
-                text=[callout_text], mode='text',
-                textfont=dict(color='#111111', size=13, family='Arial Black'),
-                showlegend=False, hoverinfo='skip',
-            ))
-
-    geo_kw = dict(showframe=False,showcoastlines=True,coastlinecolor='#8c8c8c',coastlinewidth=0.75,showland=True,landcolor='#f2f2f2',showocean=True,oceancolor='#a9c7e8',showlakes=True,lakecolor='#a9c7e8',showcountries=True,countrycolor='#8c8c8c',countrywidth=0.75,bgcolor='white',projection_type='equirectangular' if region == 'World' else 'mercator')
-    if region == 'World':
-        geo_kw.update(
-            lonaxis=dict(range=[-180,180],showgrid=False),
-            lataxis=dict(range=[-60,85],showgrid=False),
-        )
-    else:
-        b = REGION_BOUNDS[region]
-        geo_kw.update(lonaxis=dict(range=list(b['lon']),showgrid=False),lataxis=dict(range=list(b['lat']),showgrid=False))
-
-    legend_title = (
-        f"<b>{map_year} total debt in default<br>by country<br>(US$ millions)</b>"
-    )
-    is_world = region == 'World'
-    fig_map.update_layout(
-        height=REGION_HEIGHTS.get(region,860),
-        geo=geo_kw,
-        title=None,
-        legend=dict(
-            title=dict(
-                text=legend_title,
-                font=dict(size=14,color='#111111',family='Arial Black'),
-            ),
-            x=0.03 if is_world else 0.06,
-            y=0.07 if is_world else 0.19,
-            xanchor='left',
-            yanchor='bottom',
-            bgcolor='rgba(255,255,255,0.98)',
-            bordercolor='#b8b8b8',
-            borderwidth=1.2,
-            font=dict(size=12,color='#111111',family='Arial Black'),
-            itemsizing='constant',
-            itemwidth=52,
-            tracegroupgap=6,
-            traceorder='normal',
+if region == 'Latin America & Caribbean':
+    LATAM_CALLOUTS = {
+        'VEN': dict(
+            # Keep the label close to Venezuela; the connector starts just
+            # below the amount so the text and arrow read as one callout.
+            label_lon=-58.5, label_lat=13.2,
+            marker_symbol='triangle-left'
         ),
-        margin=dict(l=0,r=0,t=8,b=0),
-        paper_bgcolor='white',
-        font=dict(family='Arial',size=13,color='#222222'),
+    }
+
+    for code, spec in LATAM_CALLOUTS.items():
+        row_match = view_df[view_df['code'] == code]
+        if row_match.empty:
+            continue
+        row = row_match.iloc[0]
+        if pd.isna(row['value']) or float(row['value']) <= 0:
+            continue
+
+        target_lat, target_lon, display_name = COUNTRY_CENTROIDS[code]
+        default_value = float(row['value'])
+        if default_value >= 1000:
+            value_text = f"${default_value/1e3:,.1f}B"
+        else:
+            value_text = f"${default_value:,.0f}M"
+
+        callout_text = (
+            f"<b>{display_name}</b>"
+            f"<br><b>{value_text}</b>"
+        )
+
+        # Start the connector immediately below the two-line label so the
+        # Venezuela text/amount is visibly connected to the arrow.
+        line_start_lon = spec['label_lon'] - 0.8
+        line_start_lat = spec['label_lat'] - 1.8
+        fig_map.add_trace(go.Scattergeo(
+            lon=[line_start_lon, target_lon],
+            lat=[line_start_lat, target_lat],
+            mode='lines',
+            line=dict(color='#111111', width=1.5),
+            showlegend=False, hoverinfo='skip',
+        ))
+
+        # Explicit arrowhead at the country end makes the pointer clear even
+        # after Kaleido downsizes the map for a PNG.
+        fig_map.add_trace(go.Scattergeo(
+            lon=[target_lon], lat=[target_lat],
+            mode='markers',
+            marker=dict(
+                size=8, color='#111111',
+                symbol=spec['marker_symbol'],
+                line=dict(width=0),
+            ),
+            showlegend=False, hoverinfo='skip',
+        ))
+
+        # The number is always shown on its own bold line for readability.
+        fig_map.add_trace(go.Scattergeo(
+            lon=[spec['label_lon']], lat=[spec['label_lat']],
+            text=[callout_text], mode='text',
+            textfont=dict(color='#111111', size=13, family='Arial Black'),
+            showlegend=False, hoverinfo='skip',
+        ))
+
+geo_kw = dict(showframe=False,showcoastlines=True,coastlinecolor='#8c8c8c',coastlinewidth=0.75,showland=True,landcolor='#f2f2f2',showocean=True,oceancolor='#a9c7e8',showlakes=True,lakecolor='#a9c7e8',showcountries=True,countrycolor='#8c8c8c',countrywidth=0.75,bgcolor='white',projection_type='equirectangular' if region == 'World' else 'mercator')
+if region == 'World':
+    geo_kw.update(
+        lonaxis=dict(range=[-180,180],showgrid=False),
+        lataxis=dict(range=[-60,85],showgrid=False),
     )
-    map_region_slug = region.lower().replace('&', 'and').replace(' ', '_')
-    show_chart(fig_map,f"debt_default_map_{map_region_slug}_{map_year}.html","cmap")
+else:
+    b = REGION_BOUNDS[region]
+    geo_kw.update(lonaxis=dict(range=list(b['lon']),showgrid=False),lataxis=dict(range=list(b['lat']),showgrid=False))
 
-    st.divider()
-    st.markdown(f"### {region} country order — {map_year}")
-    table_df = view_df.copy()
-    table_df['Debt in default (US$M)'] = table_df['value']
-    table_df['Debt in default (US$B)'] = table_df['value']/1e3
-    table_df['Order'] = table_df['rank']
-    table_df['Band'] = table_df['band'].fillna('No default / no data')
-    table_df['_sort_group'] = np.where(table_df['rank'].notna(),0,1)
-    table_df['_sort_rank'] = table_df['rank'].fillna(10000)
-    table_df = table_df.sort_values(['_sort_group','_sort_rank','country'],ascending=[True,True,True])
-    display_df = table_df[['Order','country','code','Debt in default (US$M)','Debt in default (US$B)','Band']].rename(columns={'country':'Country','code':'ISO3'})
-    display_df['Order'] = display_df['Order'].apply(lambda x:'' if pd.isna(x) else int(x))
-    m1,m2,m3 = st.columns(3)
-    m1.metric("Countries shown",f"{len(view_df):,}")
-    m2.metric("Countries with debt in default",f"{len(positive):,}")
-    m3.metric("Debt in default",f"${positive['value'].sum()/1e3:,.1f}B")
-    st.dataframe(display_df,use_container_width=True,hide_index=True,column_config={'Order':st.column_config.NumberColumn('Order',format='%d'),'Debt in default (US$M)':st.column_config.NumberColumn(format='$%,.0f'),'Debt in default (US$B)':st.column_config.NumberColumn(format='$%,.1f')},height=min(700,38+35*min(len(display_df),18)))
-    st.caption(f"{len(view_df)} countries shown in {region} · {len(positive)} have debt in default in {map_year}. Order ranks defaulting countries from highest to lowest debt in default.")
+legend_title = (
+    f"<b>{map_year} total debt in default<br>by country<br>(US$ millions)</b>"
+)
+is_world = region == 'World'
+fig_map.update_layout(
+    height=REGION_HEIGHTS.get(region,860),
+    geo=geo_kw,
+    title=None,
+    legend=dict(
+        title=dict(
+            text=legend_title,
+            font=dict(size=14,color='#111111',family='Arial Black'),
+        ),
+        x=0.03 if is_world else 0.06,
+        y=0.07 if is_world else 0.19,
+        xanchor='left',
+        yanchor='bottom',
+        bgcolor='rgba(255,255,255,0.98)',
+        bordercolor='#b8b8b8',
+        borderwidth=1.2,
+        font=dict(size=12,color='#111111',family='Arial Black'),
+        itemsizing='constant',
+        itemwidth=52,
+        tracegroupgap=6,
+        traceorder='normal',
+    ),
+    margin=dict(l=0,r=0,t=8,b=0),
+    paper_bgcolor='white',
+    font=dict(family='Arial',size=13,color='#222222'),
+)
+map_region_slug = region.lower().replace('&', 'and').replace(' ', '_')
+show_chart(fig_map,f"debt_default_map_{map_region_slug}_{map_year}.html","cmap")
 
-st.divider()
-st.caption(f"Source: BoC–BoE Sovereign Default Database · Last update: July 22, 2026 · Last observation: {LAST_OBS} · Built with Streamlit + Plotly")
+st.caption(
+    f"Source: BoC–BoE Sovereign Default Database · Last update: July 22, 2026 · "
+    f"Last observation: {LAST_OBS}"
+)
