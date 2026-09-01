@@ -1005,6 +1005,13 @@ with tab_map:
         view_df = map_df[
             (map_df['region'] == 'Asia') | map_df['code'].isin(MIDDLE_EAST_CODES)
         ].copy()
+    elif region == 'Europe':
+        # Russia remains classified with Asia for the Asia-Pacific extract, but
+        # also include it in Europe so its polygon uses the selected year's
+        # shared six-category debt-default colour there as well.
+        view_df = map_df[
+            (map_df['region'] == 'Europe') | (map_df['code'] == 'RUS')
+        ].copy()
     else:
         view_df = map_df[map_df['region'] == region].copy()
 
