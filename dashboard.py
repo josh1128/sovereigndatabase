@@ -490,8 +490,8 @@ def figure_with_note(fig, note, on_white=False):
 
         out.update_layout(
             legend=dict(
-                x=0.02 if is_world_geo else 0.055,
-                y=0.055 if is_world_geo else 0.18,
+                x=0.03 if is_world_geo else 0.06,
+                y=0.07 if is_world_geo else 0.19,
                 xanchor='left',
                 yanchor='bottom',
             )
@@ -621,6 +621,10 @@ def show_chart(fig, filename, key):
                     ).lower()
                     is_world_export = projection_type == 'equirectangular'
 
+                    if is_world_export:
+                        export_width = 1800
+                        export_height = max(int(export_fig.layout.height or 760), 1000)
+
                     for trace in export_fig.data:
                         if getattr(trace, 'type', None) != 'scattergeo':
                             continue
@@ -643,15 +647,12 @@ def show_chart(fig, filename, key):
                         font=dict(size=16),
                         legend=dict(
                             title=dict(
-                                font=dict(
-                                    size=18 if is_world_export else 20,
-                                    family='Arial Black',
-                                )
+                                font=dict(size=18, family='Arial Black')
                             ),
-                            font=dict(
-                                size=15 if is_world_export else 17,
-                                family='Arial Black',
-                            ),
+                            font=dict(size=16, family='Arial Black'),
+                            itemsizing='constant',
+                            itemwidth=58,
+                            tracegroupgap=8,
                         ),
                     )
 
@@ -666,8 +667,8 @@ def show_chart(fig, filename, key):
                     # need a higher y position than the rectangular World map.
                     export_fig.update_layout(
                         legend=dict(
-                            x=0.02 if is_world_export else 0.055,
-                            y=0.055 if is_world_export else 0.18,
+                            x=0.03 if is_world_export else 0.06,
+                            y=0.07 if is_world_export else 0.19,
                             xanchor='left',
                             yanchor='bottom',
                         )
@@ -906,7 +907,7 @@ with tab_map:
     REGION_BOUNDS = {
         'World': None,
         'Africa': dict(lon=(-20,55),lat=(-36,38)),
-        'Asia': dict(lon=(25,180),lat=(-12,78)),
+        'Asia': dict(lon=(60,180),lat=(-12,72)),
         'Europe': dict(lon=(-15, 68), lat=(28, 72)),
 
         # Canada and the United States. Mexico, Central America and the
@@ -918,7 +919,7 @@ with tab_map:
     }
 
     REGION_HEIGHTS = {
-        'World':650,
+        'World':760,
         'Africa':980,
         'Asia':880,
         'Europe':900,
@@ -997,18 +998,38 @@ with tab_map:
 
     fig_map = go.Figure()
     for lab in MAP_LABELS:
+        # Dedicated legend key: this guarantees the same six categories, in the
+        # same order and style, even when a selected region has no country in a band.
+        fig_map.add_trace(go.Scattergeo(
+            lon=[None], lat=[None], mode='markers',
+            marker=dict(size=13, color=MAP_COLORS[lab], symbol='square'),
+            name=f"\u2002{lab}\u2002",
+            showlegend=True, legendgroup=lab, hoverinfo='skip',
+        ))
+
         band_df = view_df[view_df['band'] == lab]
         if band_df.empty:
             continue
-        customdata = np.column_stack([band_df['value'].map(lambda x:f"${x:,.0f}M"),band_df['rank'].map(lambda x:'' if pd.isna(x) else f"#{int(x)}")])
-        fig_map.add_trace(go.Choropleth(locations=band_df['code'],z=np.ones(len(band_df)),text=band_df['country'],customdata=customdata,colorscale=[[0,MAP_COLORS[lab]],[1,MAP_COLORS[lab]]],showscale=False,marker_line_color='#8c8c8c',marker_line_width=0.75,name=lab,showlegend=True,legendgroup=lab,hovertemplate='<b>%{text}</b><br>Debt in default: %{customdata[0]}<br>Regional order: %{customdata[1]}<extra></extra>'))
+
+        customdata = np.column_stack([
+            band_df['value'].map(lambda x:f"${x:,.0f}M"),
+            band_df['rank'].map(lambda x:'' if pd.isna(x) else f"#{int(x)}")
+        ])
+        fig_map.add_trace(go.Choropleth(
+            locations=band_df['code'], z=np.ones(len(band_df)),
+            text=band_df['country'], customdata=customdata,
+            colorscale=[[0,MAP_COLORS[lab]],[1,MAP_COLORS[lab]]],
+            showscale=False, marker_line_color='#8c8c8c', marker_line_width=0.75,
+            name=lab, showlegend=False, legendgroup=lab,
+            hovertemplate='<b>%{text}</b><br>Debt in default: %{customdata[0]}<br>Regional order: %{customdata[1]}<extra></extra>'
+        ))
 
     SHORT_LABELS = {'United Kingdom':'UK','United States':'USA','Central African Republic':'CENTRAL AFRICAN<br>REPUBLIC','Democratic Republic Of The Congo':'DR CONGO','Congo [Drc]':'DR CONGO','Congo [Republic]':'CONGO','Bosnia And Herzegovina':'BOSNIA &<br>HERZ.','North Macedonia':'N. MACEDONIA','Papua New Guinea':'PAPUA NEW<br>GUINEA','Equatorial Guinea':'EQUATORIAL<br>GUINEA','Guinea-Bissau':'GUINEA-<br>BISSAU','South Africa':'SOUTH AFRICA','South Sudan':'SOUTH SUDAN','Saudi Arabia':'SAUDI ARABIA','North Korea':'NORTH KOREA','South Korea':'SOUTH KOREA','New Zealand':'NEW ZEALAND'}
 
     LABEL_OFFSETS = {
         'Africa': {'GMB':(-2.5,0.5),'GNB':(-2.3,-0.7),'SLE':(-1.6,-0.8),'LBR':(-1.4,-1.0),'TGO':(0.0,-1.2),'BEN':(0.8,1.0),'RWA':(1.4,0.5),'BDI':(1.5,-0.8),'UGA':(0.8,1.2),'MWI':(1.1,-0.4),'SWZ':(1.0,-0.8),'LSO':(0.0,-1.4),'DJI':(1.4,0.4),'ERI':(0.7,1.0)},
         'Europe': {'BEL':(-1.7,0.7),'NLD':(0.0,1.3),'LUX':(1.3,-0.4),'CHE':(-1.1,-0.8),'AUT':(1.0,0.3),'SVN':(-0.8,-0.7),'HRV':(1.0,-0.5),'BIH':(1.5,0.2),'MNE':(0.5,-0.8),'SRB':(1.2,0.4),'MKD':(0.8,-0.9),'ALB':(-0.6,-0.7),'SVK':(0.7,0.7),'CZE':(-0.5,0.8),'MDA':(1.1,0.3)},
-        'Asia': {'LBN':(-1.5,0.7),'ISR':(-1.5,-0.5),'PSE':(1.5,-0.7),'JOR':(1.5,0.4),'KWT':(1.3,0.8),'QAT':(1.4,-0.4),'BHR':(1.4,0.5),'SGP':(1.5,-0.8),'BRN':(1.5,0.5)},
+        'Asia': {'LBN':(-2.0,1.2),'ISR':(-2.0,-0.8),'PSE':(2.0,-1.0),'JOR':(2.0,0.7),'KWT':(1.8,1.0),'QAT':(1.8,-0.7),'BHR':(1.8,0.7),'SGP':(2.0,-1.0),'BRN':(2.0,0.8),'BGD':(2.0,1.0),'NPL':(-2.0,1.0),'LKA':(2.0,-1.5),'THA':(-2.2,1.0),'LAO':(-2.2,1.4),'KHM':(2.2,-1.2),'VNM':(2.5,0.4),'MYS':(2.5,-1.0)},
         'North America': {},
         'Latin America & Caribbean': {
             'BLZ':(-1.0,0.8),'GTM':(-1.0,0.3),'HND':(0.8,0.9),
@@ -1031,9 +1052,16 @@ with tab_map:
 
     REGION_HIDE_LABELS = {
         'North America': set(),
+        'Asia': {
+            # Tiny, dense labels remain available via hover/table but are omitted
+            # from the printed label layer to keep Asia-Pacific readable.
+            'PSE','QAT','BHR','SGP','BRN'
+        },
         'Latin America & Caribbean': {
             # Keep tiny island polygons/hover data but suppress overlapping text.
-            'ABW','AIA','ATG','BHS','BRB','CUW','DMA','GRD','KNA','LCA','PRI','SXM','VCT'
+            # Venezuela and Haiti are rendered separately as callouts below.
+            'ABW','AIA','ATG','BHS','BRB','CUW','DMA','GRD','KNA','LCA','PRI','SXM','VCT',
+            'VEN','HTI'
         },
     }
 
@@ -1050,7 +1078,7 @@ with tab_map:
         'Latin America & Caribbean':20,
         'Europe':18,
         'Africa':22,
-        'Asia':18,
+        'Asia':14,
     }
 
     def format_country_label(row):
@@ -1200,7 +1228,14 @@ with tab_map:
         }
 
         europe_labels = []
+        europe_default_codes = set(
+            view_df.loc[view_df['value'].fillna(0) > 0, 'code'].dropna()
+        )
+        europe_visible_codes = europe_default_codes | {'GRC'}
+
         for code in EUROPE_LABEL_CODES:
+            if code not in europe_visible_codes:
+                continue
             if code not in COUNTRY_CENTROIDS:
                 continue
             default_lat, default_lon, _ = COUNTRY_CENTROIDS[code]
@@ -1289,6 +1324,42 @@ with tab_map:
                     )
                 ))
 
+    if region == 'Latin America & Caribbean':
+        LATAM_CALLOUTS = {
+            'VEN': dict(label_lon=-75.0, label_lat=11.5, arrow='→'),
+            'HTI': dict(label_lon=-66.5, label_lat=22.0, arrow='←'),
+        }
+
+        for code, spec in LATAM_CALLOUTS.items():
+            row_match = view_df[view_df['code'] == code]
+            if row_match.empty:
+                continue
+            row = row_match.iloc[0]
+            if float(row['value'] or 0) <= 0:
+                continue
+
+            target_lat, target_lon, display_name = COUNTRY_CENTROIDS[code]
+            if code == 'VEN':
+                callout_text = f"<b>{display_name} {spec['arrow']}</b>"
+            else:
+                callout_text = f"<b>{spec['arrow']} {display_name}</b>"
+            if row['value'] >= 10000:
+                callout_text += f"<br><b>${row['value']/1e3:,.1f}B</b>"
+
+            fig_map.add_trace(go.Scattergeo(
+                lon=[spec['label_lon'], target_lon],
+                lat=[spec['label_lat'], target_lat],
+                mode='lines',
+                line=dict(color='#222222', width=1.4),
+                showlegend=False, hoverinfo='skip',
+            ))
+            fig_map.add_trace(go.Scattergeo(
+                lon=[spec['label_lon']], lat=[spec['label_lat']],
+                text=[callout_text], mode='text',
+                textfont=dict(color='#222222', size=11, family='Arial Black'),
+                showlegend=False, hoverinfo='skip',
+            ))
+
     geo_kw = dict(showframe=False,showcoastlines=True,coastlinecolor='#8c8c8c',coastlinewidth=0.75,showland=True,landcolor='#f2f2f2',showocean=True,oceancolor='#a9c7e8',showlakes=True,lakecolor='#a9c7e8',showcountries=True,countrycolor='#8c8c8c',countrywidth=0.75,bgcolor='white',projection_type='equirectangular' if region == 'World' else 'mercator')
     if region == 'World':
         geo_kw.update(
@@ -1299,7 +1370,9 @@ with tab_map:
         b = REGION_BOUNDS[region]
         geo_kw.update(lonaxis=dict(range=list(b['lon']),showgrid=False),lataxis=dict(range=list(b['lat']),showgrid=False))
 
-    legend_title = f"<b>{map_year} total debt in default<br>by country (US$ millions)</b>"
+    legend_title = (
+        f"<b>{map_year} total debt in default<br>by country<br>(US$ millions)</b>"
+    )
     is_world = region == 'World'
     fig_map.update_layout(
         height=REGION_HEIGHTS.get(region,860),
@@ -1308,22 +1381,24 @@ with tab_map:
         legend=dict(
             title=dict(
                 text=legend_title,
-                font=dict(size=12 if is_world else 15,color='#111111',family='Arial Black'),
+                font=dict(size=14,color='#111111',family='Arial Black'),
             ),
-            x=0.02 if is_world else 0.055,
-            y=0.055 if is_world else 0.18,
+            x=0.03 if is_world else 0.06,
+            y=0.07 if is_world else 0.19,
             xanchor='left',
             yanchor='bottom',
-            bgcolor='rgba(255,255,255,0.97)',
+            bgcolor='rgba(255,255,255,0.98)',
             bordercolor='#b8b8b8',
-            borderwidth=1,
-            font=dict(size=10 if is_world else 13,color='#111111',family='Arial Black'),
+            borderwidth=1.2,
+            font=dict(size=12,color='#111111',family='Arial Black'),
             itemsizing='constant',
+            itemwidth=52,
+            tracegroupgap=6,
             traceorder='normal',
         ),
         margin=dict(l=0,r=0,t=8,b=0),
         paper_bgcolor='white',
-        font=dict(family='Arial',size=11 if is_world else 13,color='#222222'),
+        font=dict(family='Arial',size=13,color='#222222'),
     )
     map_region_slug = region.lower().replace('&', 'and').replace(' ', '_')
     show_chart(fig_map,f"debt_default_map_{map_region_slug}_{map_year}.html","cmap")
