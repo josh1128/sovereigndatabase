@@ -650,7 +650,7 @@ def show_chart(fig, filename, key):
                             ),
                             font=dict(size=16, family='Arial Black'),
                             itemsizing='constant',
-                            itemwidth=82,
+                            itemwidth=48,
                             tracegroupgap=8,
                         ),
                     )
@@ -1316,7 +1316,7 @@ fig_map.update_layout(
         borderwidth=1.2,
         font=dict(size=12,color='#111111',family='Arial Black'),
         itemsizing='constant',
-        itemwidth=78,
+        itemwidth=44,
         tracegroupgap=6,
         traceorder='normal',
     ),
