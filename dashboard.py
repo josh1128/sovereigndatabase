@@ -650,7 +650,7 @@ def show_chart(fig, filename, key):
                             ),
                             font=dict(size=16, family='Arial Black'),
                             itemsizing='constant',
-                            itemwidth=58,
+                            itemwidth=82,
                             tracegroupgap=8,
                         ),
                     )
@@ -1295,7 +1295,7 @@ else:
     geo_kw.update(lonaxis=dict(range=list(b['lon']),showgrid=False),lataxis=dict(range=list(b['lat']),showgrid=False))
 
 legend_title = (
-    f"<b>{map_year} total debt in default<br>by country<br>(US$ millions)</b>"
+    f"<b>{map_year} total debt in default<br>by country (US$ millions)</b>"
 )
 is_world = region == 'World'
 fig_map.update_layout(
@@ -1316,7 +1316,7 @@ fig_map.update_layout(
         borderwidth=1.2,
         font=dict(size=12,color='#111111',family='Arial Black'),
         itemsizing='constant',
-        itemwidth=52,
+        itemwidth=78,
         tracegroupgap=6,
         traceorder='normal',
     ),
