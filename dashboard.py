@@ -489,7 +489,7 @@ def figure_with_note(fig, note, on_white=False):
 
         out.update_layout(
             legend=dict(
-                x=0.03 if is_world_geo else 0.06,
+                x=0.015 if is_world_geo else 0.035,
                 y=0.07 if is_world_geo else 0.19,
                 xanchor='left',
                 yanchor='bottom',
@@ -666,7 +666,7 @@ def show_chart(fig, filename, key):
                     # need a higher y position than the rectangular World map.
                     export_fig.update_layout(
                         legend=dict(
-                            x=0.03 if is_world_export else 0.06,
+                            x=0.015 if is_world_export else 0.035,
                             y=0.07 if is_world_export else 0.19,
                             xanchor='left',
                             yanchor='bottom',
@@ -1307,7 +1307,7 @@ fig_map.update_layout(
             text=legend_title,
             font=dict(size=14,color='#111111',family='Arial Black'),
         ),
-        x=0.03 if is_world else 0.06,
+        x=0.015 if is_world else 0.035,
         y=0.07 if is_world else 0.19,
         xanchor='left',
         yanchor='bottom',
